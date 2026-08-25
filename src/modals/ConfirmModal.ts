@@ -1,4 +1,8 @@
-import { Modal, Setting, App } from "obsidian";
+import {
+	Modal,
+	Setting,
+	App
+} from 'obsidian';
 
 class ConfirmModal extends Modal {
 	_onConfirm: Function;
@@ -13,7 +17,7 @@ class ConfirmModal extends Modal {
 		title: string,
 		text: string,
 		confirmButtonText: string,
-		cancelButtonText: string = "Cancel"
+		cancelButtonText: string = 'Cancel'
 	) {
 		super(app);
 
@@ -27,13 +31,13 @@ class ConfirmModal extends Modal {
 	onOpen() {
 		const { contentEl } = this;
 
-		contentEl.createEl("h2", { text: this._title });
-		contentEl.createEl("p", { text: this._text });
+		contentEl.createEl('h2', { text: this._title });
+		contentEl.createEl('p', { text: this._text });
 
 		new Setting(contentEl)
 			.addButton((component) => {
 				component.setButtonText(this._confirmButtonText);
-				component.setClass("mod-warning");
+				component.setClass('mod-warning');
 
 				component.onClick(() => {
 					this._onConfirm();

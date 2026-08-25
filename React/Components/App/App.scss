@@ -1,4 +1,4 @@
-.workspace-tabs .workspace-leaf-content.beautitab {
+.workspace-tabs .workspace-leaf-content.tabcandy {
 	color: #dadada;
 	container-type: size;
 
@@ -35,7 +35,7 @@
 		overflow: hidden;
 	}
 
-	.beautitab-root {
+	.tabcandy-root {
 		height: 100%;
 		width: 100%;
 		text-shadow: rgba(0, 0, 0, 0.1) 0px 1px 5px;
@@ -44,27 +44,27 @@
 		background-repeat: no-repeat;
 		background-size: cover;
 
-		&.beautitab-root--transparent {
+		&.tabcandy-root--transparent {
 			background: transparent;
 
-			.beautitab-wrapper {
+			.tabcandy-wrapper {
 				background: transparent;
 
-				.beautitab-top {
+				.tabcandy-top {
 					background: transparent;
 				}
 
-				.beautitab-quote {
+				.tabcandy-quote {
 					background: transparent;
 				}
 			}
 		}
 
-		&.beautitab-root--transparentWithShadows {
+		&.tabcandy-root--transparentWithShadows {
 			background: transparent;
 		}
 
-		.beautitab-wrapper {
+		.tabcandy-wrapper {
 			height: 100%;
 			width: 100%;
 			display: flex;
@@ -78,7 +78,7 @@
 				rgba(0, 0, 0, 0) 100%
 			);
 
-			.beautitab-top {
+			.tabcandy-top {
 				flex: 1;
 				background: linear-gradient(
 					to bottom,
@@ -89,7 +89,7 @@
 				height: 60px;
 				padding: 10px;
 
-				.beautitab-iconbutton {
+				.tabcandy-iconbutton {
 					opacity: 0.8;
 
 					&:hover {
@@ -103,7 +103,7 @@
 				}
 			}
 
-			.beautitab-center {
+			.tabcandy-center {
 				flex: 1;
 				display: flex;
 				flex-direction: column;
@@ -112,7 +112,7 @@
 				width: 100%;
 				padding-bottom: 20px;
 
-				.beautitab-time {
+				.tabcandy-time {
 					font-size: 1050%;
 					line-height: 1;
 
@@ -121,7 +121,7 @@
 					}
 				}
 
-				.beautitab-greeting {
+				.tabcandy-greeting {
 					font-size: 3rem;
 
 					@container (max-width: 520px) {
@@ -130,14 +130,14 @@
 				}
 			}
 
-			.beautitab-bottom {
+			.tabcandy-bottom {
 				flex: 1;
 				display: flex;
 				flex-direction: column;
 				width: 100%;
 				align-items: center;
 
-				.beautitab-search {
+				.tabcandy-search {
 					width: 50%;
 					min-width: 500px;
 
@@ -146,7 +146,7 @@
 						min-width: auto;
 					}
 
-					.beautitab-search-wrapper {
+					.tabcandy-search-wrapper {
 						height: 60px;
 						border-radius: 60px;
 						display: flex;
@@ -161,27 +161,27 @@
 						line-height: 1;
 						padding-left: 20px;
 
-						.beautitab-search-text {
+						.tabcandy-search-text {
 							font-size: 28px;
 							opacity: 0.8;
 							padding-left: 20px;
 						}
 
-						.beautitab-icon svg {
+						.tabcandy-icon svg {
 							height: 26px;
 							width: 26px;
 						}
 					}
 				}
 
-				.beautitab-recentlyedited {
+				.tabcandy-recentlyedited {
 					display: flex;
 					align-items: center;
 					justify-content: center;
 					overflow-y: auto;
 					width: 100%;
 
-					.beautitab-recentlyedited-file {
+					.tabcandy-recentlyedited-file {
 						color: inherit;
 						text-decoration: none;
 						text-align: center;
@@ -197,7 +197,7 @@
 							border-radius: 10px;
 						}
 
-						.beautitab-icon {
+						.tabcandy-icon {
 							display: block;
 							svg {
 								width: 24px;
@@ -205,7 +205,7 @@
 							}
 						}
 
-						.beautitab-recentlyedited-file-name {
+						.tabcandy-recentlyedited-file-name {
 							display: block;
 							font-size: 12px;
 							text-overflow: ellipsis;
@@ -215,7 +215,7 @@
 				}
 			}
 
-			.beautitab-quote {
+			.tabcandy-quote {
 				width: 100%;
 				min-height: 60px;
 				padding-bottom: 10px;
@@ -231,7 +231,7 @@
 					padding-bottom: 80px;
 				}
 
-				.beautitab-quote-content {
+				.tabcandy-quote-content {
 					font-size: 1.1rem;
 					font-weight: 500;
 					margin-bottom: 5px;
@@ -241,7 +241,7 @@
 					}
 				}
 
-				.beautitab-quote-author {
+				.tabcandy-quote-author {
 					font-size: 0.9rem;
 					opacity: 0.7;
 				}
@@ -249,11 +249,11 @@
 		}
 	}
 
-	.beautitab-iconbutton {
+	.tabcandy-iconbutton {
 		text-decoration: none;
 		color: inherit;
 
-		.beautitab-iconbutton-text {
+		.tabcandy-iconbutton-text {
 			position: absolute;
 			left: -9999999px;
 		}

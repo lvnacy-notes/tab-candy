@@ -1,20 +1,20 @@
 import fs from "fs";
-import { getBookmarkGroups } from "React/Utils/getBookmarks";
-import BeautitabPlugin from "main";
+import { getBookmarkGroups } from "../../React/Utils/getBookmarks";
+import TabCandyPlugin from "../../main";
 import { App, PluginSettingTab, Setting, arrayBufferToBase64 } from "obsidian";
-import ChooseSearchProvider from "src/ChooseSearchProvider/ChooseSearchProvider";
-import CustomQuotesModel from "src/CustomQuotesModel/CustomQuotesModel";
+import ChooseSearchProvider from "../modals/ChooseSearchProvider";
+import CustomQuotesModel from "../modals/CustomQuotesModel";
 import {
 	BOOKMARK_SOURCE,
 	BackgroundTheme,
 	QUOTE_SOURCE,
 	TIME_FORMAT,
-} from "src/Types/Enums";
-import { CustomQuote, SearchProvider } from "src/Types/Interfaces";
-import capitalizeFirstLetter from "src/Utils/capitalizeFirstLetter";
+} from "../Types/Enums";
+import { CustomQuote, SearchProvider } from "../Types/Interfaces";
+import capitalizeFirstLetter from "../Utils/capitalizeFirstLetter";
 import electron from "electron";
-import ConfirmModal from "src/ConfirmModal/ConfirmModal";
-import ChooseImageSuggestModal from "src/ChooseImageSuggestModal/ChooseImageSuggestModal";
+import ConfirmModal from "../modals/ConfirmModal";
+import ChooseImageSuggestModal from "../modals/ChooseImageSuggestModal";
 
 const DEFAULT_SEARCH_PROVIDER: SearchProvider = {
 	command: "switcher:open",
@@ -28,10 +28,11 @@ export const SEARCH_PROVIDER = [
 	"obsidian-another-quick-switcher",
 ];
 
-export interface BeautitabPluginSettings {
+export interface TabCandyPluginSettings {
 	backgroundTheme: BackgroundTheme;
 	customBackground: string;
 	localBackgrounds: string[];
+	localBackgroundsDirectory: string;
 	showTopLeftSearchButton: boolean;
 	topLeftSearchProvider: SearchProvider;
 	showTime: boolean;
@@ -49,10 +50,11 @@ export interface BeautitabPluginSettings {
 	customQuotes: CustomQuote[];
 }
 
-export const DEFAULT_SETTINGS: BeautitabPluginSettings = {
+export const DEFAULT_SETTINGS: TabCandyPluginSettings = {
 	backgroundTheme: BackgroundTheme.SEASONS_AND_HOLIDAYS,
 	customBackground: "",
 	localBackgrounds: [],
+	localBackgroundsDirectory: "",
 	showTopLeftSearchButton: true,
 	topLeftSearchProvider: DEFAULT_SEARCH_PROVIDER,
 	showTime: true,
@@ -70,10 +72,10 @@ export const DEFAULT_SETTINGS: BeautitabPluginSettings = {
 	customQuotes: [],
 };
 
-export class BeautitabPluginSettingTab extends PluginSettingTab {
-	plugin: BeautitabPlugin;
+export class TabCandyPluginSettingTab extends PluginSettingTab {
+	plugin: TabCandyPlugin;
 
-	constructor(app: App, plugin: BeautitabPlugin) {
+	constructor(app: App, plugin: TabCandyPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -127,8 +129,66 @@ export class BeautitabPluginSettingTab extends PluginSettingTab {
 				});
 		}
 
+		// @ts-ignore
+		if (!this.app.isMobile) {
+			const localBackgroundsDirectorySetting = new Setting(containerEl)
+				.setName("Local background images folder")
+				.setDesc(
+					`Instead of adding images one by one, you can point Tab Candy at a folder on your computer. Every image in this folder (jpg/jpeg/png/webp/gif, not including subfolders) will automatically be loaded as a local background whenever Obsidian is reloaded or restarted, so you can just drop new images into the folder to update your rotation.`
+				);
+
+			localBackgroundsDirectorySetting.addText((component) => {
+				component.setPlaceholder(
+					"e.g. /Users/me/Pictures/tab-candy-backgrounds"
+				);
+				component.setValue(
+					this.plugin.settings.localBackgroundsDirectory
+				);
+				component.onChange((value) => {
+					this.plugin.settings.localBackgroundsDirectory = value;
+					this.plugin.saveSettings();
+				});
+			});
+
+			localBackgroundsDirectorySetting.addButton((component) => {
+				component.setButtonText("Browse");
+				component.onClick(() => {
+					// @ts-ignore
+					electron.remote.dialog
+						.showOpenDialog({
+							properties: ["openDirectory"],
+							title: "Choose folder to watch for background images",
+						})
+						.then(async (result: any) => {
+							if (!result.canceled && result.filePaths[0]) {
+								this.plugin.settings.localBackgroundsDirectory =
+									result.filePaths[0];
+								await this.plugin.saveSettings();
+								await this.plugin.syncLocalBackgroundsFromDirectory();
+								this.display();
+							}
+						});
+				});
+			});
+
+			localBackgroundsDirectorySetting.addButton((component) => {
+				component.setButtonText("Sync now");
+				component.setTooltip(
+					"Re-scan the folder above and refresh the local backgrounds list"
+				);
+				component.onClick(async () => {
+					await this.plugin.syncLocalBackgroundsFromDirectory();
+					this.display();
+				});
+			});
+		}
+
 		const localBackgroundImagesSetting = new Setting(containerEl).setName(
 			"Local background images"
+		).setDesc(
+			this.plugin.settings.localBackgroundsDirectory
+				? `These are currently synced from the folder above. Manually added images below will be replaced the next time the folder is synced.`
+				: ``
 		);
 
 		// @ts-ignore
@@ -182,13 +242,13 @@ export class BeautitabPluginSettingTab extends PluginSettingTab {
 		});
 
 		const localBackgroundsDiv = containerEl.createEl("div", {
-			cls: "beautitabsettings-localbackgrounds",
+			cls: "tabcandysettings-localbackgrounds",
 		});
 
 		this.plugin.settings.localBackgrounds.forEach(
 			(localBackground, index) => {
 				const backgroundDiv = localBackgroundsDiv.createEl("div", {
-					cls: "beautitabsettings-localbackgrounds-background",
+					cls: "tabcandysettings-localbackgrounds-background",
 				});
 				backgroundDiv.createEl("img", {
 					attr: {
@@ -197,7 +257,7 @@ export class BeautitabPluginSettingTab extends PluginSettingTab {
 				});
 				backgroundDiv.createEl("button", {
 					text: "x",
-					cls: "beautitabsettings-localbackgrounds-background-delete",
+					cls: "tabcandysettings-localbackgrounds-background-delete",
 				});
 				backgroundDiv.addEventListener("click", () => {
 					new ConfirmModal(

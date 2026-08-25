@@ -1,5 +1,8 @@
-import { App, FuzzySuggestModal, TFile } from "obsidian";
-import { BeautitabPluginSettings } from "src/Settings/Settings";
+import {
+	App,
+	FuzzySuggestModal,
+	TFile
+} from 'obsidian';
 
 export interface Image {
 	name: string;
@@ -7,7 +10,6 @@ export interface Image {
 }
 
 class ChooseImageSuggestModal extends FuzzySuggestModal<TFile> {
-	settings: BeautitabPluginSettings;
 	onSubmit: (result: TFile) => void;
 	result: TFile;
 
@@ -22,7 +24,7 @@ class ChooseImageSuggestModal extends FuzzySuggestModal<TFile> {
 	getItems(): TFile[] {
 		return this.app.vault
 			.getFiles()
-			.filter((f) => ["jpg", "jpeg", "png"].includes(f.extension));
+			.filter((f) => ['jpg', 'jpeg', 'png'].includes(f.extension));
 	}
 
 	getItemText(item: TFile): string {

@@ -1,0 +1,9 @@
+# archivist project configuration
+uuid: f22bf04e-2ab6-4d98-8a21-0897bf282c16
+module-type: general
+apparati:
+  - lvnacy
+git-remote: git@github.com:lvnacy-notes/tab-candy.git
+git-remote-name: github
+ignores:
+  []

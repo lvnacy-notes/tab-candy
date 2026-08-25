@@ -3,21 +3,21 @@ import { Root, createRoot } from "react-dom/client";
 import ReactApp from "../React/Components/App/App";
 import { ObsidianContext } from "../React/Context/ObsidianAppContext";
 import Observable from "src/Utils/Observable";
-import BeautitabPlugin from "main";
+import TabCandyPlugin from "main";
 
-export const BEAUTITAB_REACT_VIEW = "beautitab-react-view";
+export const TAB_CANDY_REACT_VIEW = "tabcandy-react-view";
 
 export class ReactView extends FileView {
 	root: Root | null = null;
 	app: App;
 	settingsObservable: Observable;
-	plugin: BeautitabPlugin;
+	plugin: TabCandyPlugin;
 
 	constructor(
 		app: App,
 		settingsObservable: Observable,
 		leaf: WorkspaceLeaf,
-		plugin: BeautitabPlugin
+		plugin: TabCandyPlugin
 	) {
 		super(leaf);
 		this.app = app;
@@ -27,7 +27,7 @@ export class ReactView extends FileView {
 	}
 
 	getViewType() {
-		return BEAUTITAB_REACT_VIEW;
+		return TAB_CANDY_REACT_VIEW;
 	}
 
 	getDisplayText() {
@@ -48,7 +48,7 @@ export class ReactView extends FileView {
 				/>
 			</ObsidianContext.Provider>
 		);
-		this.containerEl.addClass("beautitab");
+		this.containerEl.addClass("tabcandy");
 	}
 
 	async onClose() {

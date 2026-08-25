@@ -1,16 +1,16 @@
-# Obsidian Beautitab
+# Tab Candy
 
 A plugin for Obsidian.MD that creates a customizable new tab view with beautiful backgrounds, quotes, search, and more.
 
-![A screenshot showing the beautitab screen](screenshots/mountains.png)
+![A screenshot showing the Tab Candy screen](screenshots/mountains.png)
 
 ## How to install
 
-Plugin can be installed via the [official community plugins](https://obsidian.md/plugins?id=beautitab).
+<!-- Note here about custom installation -->
 
 ## Features and customizations
 
-Beautitab is built to be very customizable with every elements being able to be hidden or shown at the users discretion. This includes customization of the rotating backgrounds.
+Tab Candy is the evolution of [Beautitab](https://github.com/andrewmcgivery/obsidian-beautitab) which has fallen into disrepair, as projects often do. Life fucking happens. Tab Candy was forked and has since taken on a life of its own. Beautitab was built to be very customizable; you could hide or show every element at your discretion. Tab Candy has migrated and overhauled the code, bringing it in alignment with the latest Obsidian API, made it viable on both Desktop and Mobile, and built in new functionality.
 
 ### Top left search
 
@@ -62,11 +62,11 @@ The quote can be shown/hidden via settings. It can also be configured to use the
 
 ### Background
 
-A random background is displayed on the Beautitab screen. This background will remain the same for the remainder of the day or when Obsidian is reloaded/relaunched. Various themes can be selected in settings.
+A random background is displayed on the Tab Candy screen. This background will remain the same for the remainder of the day or when Obsidian is reloaded/relaunched. Various themes can be selected in settings.
 
 In addition to the built in themes, you can provide your own images from your local computer (desktop only) or from your vault.
 
-You may also select "transparent" or "transparent with shadows" mode if you would like your theme's background to show through Beautitab.
+You may also select "transparent" or "transparent with shadows" mode if you would like your theme's background to show through Tab Candy.
 
 #### Seasons and holidays (_Recommended_)
 
@@ -87,21 +87,21 @@ All customizations can be completed within the settings screen.
 
 ## Screenshots and examples
 
-![Screenshot of Beautitab](screenshots/screenshot1.png)
+![Screenshot of Tab Candy](screenshots/screenshot1.png)
 
-![Screenshot of Beautitab](screenshots/screenshot2.png)
+![Screenshot of Tab Candy](screenshots/screenshot2.png)
 
-![Screenshot of Beautitab](screenshots/screenshot3.png)
+![Screenshot of Tab Candy](screenshots/screenshot3.png)
 
-![Screenshot of Beautitab](screenshots/screenshot4.png)
+![Screenshot of Tab Candy](screenshots/screenshot4.png)
 
-![Screenshot of Beautitab](screenshots/screenshot5.png)
+![Screenshot of Tab Candy](screenshots/screenshot5.png)
 
-![Screenshot of Beautitab](screenshots/screenshot6.png)
+![Screenshot of Tab Candy](screenshots/screenshot6.png)
 
-![Screenshot of Beautitab](screenshots/screenshot8.png)
+![Screenshot of Tab Candy](screenshots/screenshot8.png)
 
-![Screenshot of Beautitab](screenshots/screenshot9.png)
+![Screenshot of Tab Candy](screenshots/screenshot9.png)
 
 ## Reporting issues
 

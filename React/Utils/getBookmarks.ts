@@ -1,6 +1,6 @@
 import { App, TAbstractFile } from "obsidian";
-import { BeautitabPluginSettings } from "src/Settings/Settings";
-import { BOOKMARK_SOURCE } from "src/Types/Enums";
+import { TabCandyPluginSettings } from "../../src/Settings/Settings";
+import { BOOKMARK_SOURCE } from "../../src/Types/Enums";
 
 /**
  * Recursively gets all bookmarks
@@ -32,7 +32,7 @@ const getBookmarksByGroupName = (title: string, items: any[]) => {
 
 	items.forEach((item) => {
 		if (item.type === "group") {
-			console.log(`Found group with title ${item.title}`);
+			console.log(`Found group with title ${ item.title }`);
 			if (item.title === title) {
 				console.log("found match!", item.items);
 				flattedBookmarks = flattenBookmarks(item.items);
@@ -55,7 +55,7 @@ const getBookmarksByGroupName = (title: string, items: any[]) => {
  */
 export const getBookmarks = (
 	app: App | undefined,
-	settings: BeautitabPluginSettings
+	settings: TabCandyPluginSettings
 ): TAbstractFile[] => {
 	// @ts-ignore
 	let bookmarks = app?.internalPlugins.plugins.bookmarks.instance.items;

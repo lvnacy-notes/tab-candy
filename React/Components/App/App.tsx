@@ -1,15 +1,20 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
-import { useObsidian } from "../../Context/ObsidianAppContext";
-import { TFile, getIcon } from "obsidian";
-import getTime from "React/Utils/getTime";
-import Observable from "src/Utils/Observable";
-import BeautitabPlugin from "main";
-import getBackground from "React/Utils/getBackground";
-import getTimeOfDayGreeting from "React/Utils/getTimeOfDayGreeting";
-import { getBookmarks } from "React/Utils/getBookmarks";
-import { BeautitabPluginSettings } from "src/Settings/Settings";
-import getQuote from "React/Utils/getQuote";
-import { BackgroundTheme } from "src/Types/Enums";
+import {
+	useEffect,
+	useMemo,
+	useState,
+	useRef
+} from 'react';
+import { useObsidian } from '../../Context/ObsidianAppContext';
+import { TFile, getIcon } from 'obsidian';
+import getTime from '../../Utils/getTime';
+import Observable from '../../../src/Utils/Observable';
+import TabCandyPlugin from '../../../main';
+import getBackground from '../../Utils/getBackground';
+import getTimeOfDayGreeting from '../../Utils/getTimeOfDayGreeting';
+import { getBookmarks } from '../../Utils/getBookmarks';
+import { TabCandyPluginSettings } from '../../../src/Settings/Settings';
+import getQuote from '../../Utils/getQuote';
+import { BackgroundTheme } from '../../../src/Types/Enums';
 
 /**
  * Given an icon name, converts a Obsidian icon to a usable SVG string and embeds it into a span.
@@ -22,7 +27,7 @@ const Icon = ({ name }: { name: string }) => {
 
 	return (
 		<span
-			className="beautitab-icon"
+			className='tabcandy-icon'
 			dangerouslySetInnerHTML={{
 				__html: iconText,
 			}}
@@ -35,13 +40,13 @@ const App = ({
 	plugin,
 }: {
 	settingsObservable: Observable;
-	plugin: BeautitabPlugin;
+	plugin: TabCandyPlugin;
 }) => {
 	const [quote, setQuote] = useState<{
 		content: string;
 		author: string;
 	} | null>(null);
-	const [settings, setSettings] = useState<BeautitabPluginSettings>(
+	const [settings, setSettings] = useState<TabCandyPluginSettings>(
 		settingsObservable.getValue()
 	);
 	const [time, setTime] = useState(getTime(settings.timeFormat));
@@ -65,7 +70,7 @@ const App = ({
 	const allVaultFiles = obsidian?.vault.getAllLoadedFiles();
 	const latestModifiedMarkdownFiles = useMemo(() => {
 		const files = allVaultFiles?.filter(
-			(file) => file instanceof TFile && file.extension === "md"
+			(file) => file instanceof TFile && file.extension === 'md'
 		);
 		files?.sort((a, b) =>
 			a instanceof TFile && b instanceof TFile
@@ -82,7 +87,7 @@ const App = ({
 
 	/**
 	 * Keep the time up to date by updating it every second
-	 * Note that this shouldn't cause extra renders because calling "setTime" with a duplicate value should skip the render
+	 * Note that this shouldn't cause extra renders because calling 'setTime' with a duplicate value should skip the render
 	 */
 	useEffect(() => {
 		const timer = setInterval(() => {
@@ -110,7 +115,7 @@ const App = ({
 	 */
 	useEffect(() => {
 		const unsubscribe = settingsObservable.onChange(
-			(newSettings: BeautitabPluginSettings) => {
+			(newSettings: TabCandyPluginSettings) => {
 				setSettings(newSettings);
 			}
 		);
@@ -129,20 +134,20 @@ const App = ({
 
 	return (
 		<div
-			className={`beautitab-root ${
+			className={`tabcandy-root ${
 				settings.backgroundTheme === BackgroundTheme.TRANSPARENT &&
-				"beautitab-root--transparent"
+				'tabcandy-root--transparent'
 			}
 			
 			${
 				settings.backgroundTheme ===
 					BackgroundTheme.TRANSPARENT_WITH_SHADOWS &&
-				"beautitab-root--transparentWithShadows"
+				'tabcandy-root--transparentWithShadows'
 			}
 			`}
 			// @ts-ignore
 			style={{
-				backgroundImage: `url("${background}")`,
+				backgroundImage: `url('${background}')`,
 			}}
 			onKeyDown={(e) => {
 				if (!e.ctrlKey && !e.altKey && /^[A-Za-z0-9]$/.test(e.key)) {
@@ -154,30 +159,30 @@ const App = ({
 			tabIndex={0} // Make the div focusable so we can capture key strokes
 			ref={mainDivRef}
 		>
-			<div className="beautitab-wrapper">
-				<div className="beautitab-top">
+			<div className='tabcandy-wrapper'>
+				<div className='tabcandy-top'>
 					{settings.showTopLeftSearchButton && (
 						<a
-							className="beautitab-iconbutton"
+							className='tabcandy-iconbutton'
 							onClick={() => {
 								plugin.openSwitcherCommand(
 									settings.topLeftSearchProvider.command
 								);
 							}}
 						>
-							<span className="beautitab-iconbutton-text">
+							<span className='tabcandy-iconbutton-text'>
 								Open Search
 							</span>
-							<Icon name="search" />
+							<Icon name='search' />
 						</a>
 					)}
 				</div>
-				<div className="beautitab-center">
+				<div className='tabcandy-center'>
 					{settings.showTime && (
-						<div className="beautitab-time">{time}</div>
+						<div className='tabcandy-time'>{time}</div>
 					)}
 					{settings.showGreeting && (
-						<div className="beautitab-greeting">
+						<div className='tabcandy-greeting'>
 							{settings.greetingText.replace(
 								/{{greeting}}/gi,
 								getTimeOfDayGreeting()
@@ -185,32 +190,32 @@ const App = ({
 						</div>
 					)}
 				</div>
-				<div className="beautitab-bottom">
-					<div className="beautitab-search">
+				<div className='tabcandy-bottom'>
+					<div className='tabcandy-search'>
 						{settings.showInlineSearch && (
 							<a
-								className="beautitab-search-wrapper"
+								className='tabcandy-search-wrapper'
 								onClick={() => {
 									plugin.openSwitcherCommand(
 										settings.inlineSearchProvider.command
 									);
 								}}
 							>
-								<Icon name="search" />
-								<span className="beautitab-search-text">
+								<Icon name='search' />
+								<span className='tabcandy-search-text'>
 									Search
 								</span>
 							</a>
 						)}
 					</div>
 					{settings.showRecentFiles && (
-						<div className="beautitab-recentlyedited">
+						<div className='tabcandy-recentlyedited'>
 							{latestModifiedMarkdownFiles?.map(
 								(file) =>
 									file instanceof TFile && (
 										<a
 											key={file.path}
-											className="beautitab-recentlyedited-file"
+											className='tabcandy-recentlyedited-file'
 											data-path={file.path}
 											onClick={() => {
 												const leaf =
@@ -220,8 +225,8 @@ const App = ({
 												}
 											}}
 										>
-											<Icon name="file" />
-											<span className="beautitab-recentlyedited-file-name">
+											<Icon name='file' />
+											<span className='tabcandy-recentlyedited-file-name'>
 												{file.basename}
 											</span>
 										</a>
@@ -229,26 +234,26 @@ const App = ({
 							)}
 						</div>
 					)}
-					{settings.showBookmarks && (
-						<div className="beautitab-recentlyedited">
-							{bookmarks?.map(
+					{ settings.showBookmarks && (
+						<div className = 'tabcandy-recentlyedited'>
+							{ bookmarks?.map(
 								(file: TFile) =>
 									file && (
 										<a
-											key={file.path}
-											className="beautitab-recentlyedited-file"
-											data-path={file.path}
-											onClick={() => {
+											key = { file.path }
+											className = 'tabcandy-recentlyedited-file'
+											data-path = { file.path }
+											onClick = { () => {
 												const leaf =
 													obsidian?.workspace.getMostRecentLeaf();
 												if (file instanceof TFile) {
 													leaf?.openFile(file);
 												}
-											}}
+											} }
 										>
-											<Icon name="bookmark" />
-											<span className="beautitab-recentlyedited-file-name">
-												{file.basename}
+											<Icon name = 'bookmark' />
+											<span className = 'tabcandy-recentlyedited-file-name'>
+												{ file.basename }
 											</span>
 										</a>
 									)
@@ -256,14 +261,14 @@ const App = ({
 						</div>
 					)}
 				</div>
-				<div className="beautitab-quote">
+				<div className='tabcandy-quote'>
 					{quote && settings.showQuote && (
-						<div className="beautitab-quote-content">
+						<div className='tabcandy-quote-content'>
 							&quot;{quote.content}&quot;
 						</div>
 					)}
 					{quote && settings.showQuote && (
-						<div className="beautitab-quote-author">
+						<div className='tabcandy-quote-author'>
 							{quote.author}
 						</div>
 					)}

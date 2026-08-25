@@ -1,11 +1,28 @@
-import { Notice, Plugin, requestUrl } from "obsidian";
-import { ReactView, BEAUTITAB_REACT_VIEW } from "./Views/ReactView";
+import {
+	Notice,
+	Plugin,
+	requestUrl
+} from "obsidian";
+import {
+	ReactView,
+	TAB_CANDY_REACT_VIEW
+} from "./Views/ReactView";
 import Observable from "src/Utils/Observable";
 import {
-	BeautitabPluginSettingTab,
-	BeautitabPluginSettings,
+	TabCandyPluginSettingTab,
+	TabCandyPluginSettings,
 	DEFAULT_SETTINGS,
 } from "src/Settings/Settings";
+import fs from "fs";
+import path from "path";
+
+const LOCAL_BACKGROUND_EXTENSIONS = [
+	".jpg",
+	".jpeg",
+	".png",
+	".webp",
+	".gif"
+];
 
 /**
  * This allows a "live-reload" of Obsidian when developing the plugin.
@@ -18,8 +35,8 @@ if (process.env.NODE_ENV === "development") {
 	);
 }
 
-export default class BeautitabPlugin extends Plugin {
-	settings: BeautitabPluginSettings;
+export default class TabCandyPlugin extends Plugin {
+	settings: TabCandyPluginSettings;
 	settingsObservable: Observable;
 
 	async onload() {
@@ -27,15 +44,19 @@ export default class BeautitabPlugin extends Plugin {
 
 		this.versionCheck();
 
+		// If the user has configured a local backgrounds folder, refresh the
+		// list of local backgrounds from disk on every load/reload/restart.
+		await this.syncLocalBackgroundsFromDirectory();
+
 		this.settingsObservable = new Observable(this.settings);
 
 		this.registerView(
-			BEAUTITAB_REACT_VIEW,
+			TAB_CANDY_REACT_VIEW,
 			(leaf) =>
 				new ReactView(this.app, this.settingsObservable, leaf, this)
 		);
 
-		this.addSettingTab(new BeautitabPluginSettingTab(this.app, this));
+		this.addSettingTab(new TabCandyPluginSettingTab(this.app, this));
 
 		this.registerEvent(
 			this.app.workspace.on(
@@ -82,7 +103,7 @@ export default class BeautitabPlugin extends Plugin {
 	async versionCheck() {
 		const localVersion = process.env.PLUGIN_VERSION;
 		const stableVersion = await requestUrl(
-			"https://raw.githubusercontent.com/andrewmcgivery/obsidian-beautitab/main/package.json"
+			"https://raw.githubusercontent.com/lvnacy-notes/tab-candy/main/package.json"
 		).then(async (res) => {
 			if (res.status === 200) {
 				const response = await res.json;
@@ -90,7 +111,7 @@ export default class BeautitabPlugin extends Plugin {
 			}
 		});
 		const betaVersion = await requestUrl(
-			"https://raw.githubusercontent.com/andrewmcgivery/obsidian-beautitab/beta/package.json"
+			"https://raw.githubusercontent.com/lvnacy-notes/tab-candy/beta/package.json"
 		).then(async (res) => {
 			if (res.status === 200) {
 				const response = await res.json;
@@ -101,26 +122,94 @@ export default class BeautitabPlugin extends Plugin {
 		if (localVersion?.indexOf("beta") !== -1) {
 			if (localVersion !== betaVersion) {
 				new Notice(
-					"There is a beta update available for the Beautitab plugin. Please update to to the latest version to get the latest features!",
+					"There is a beta update available for the Tab Candy plugin. Please update to to the latest version to get the latest features!",
 					0
 				);
 			}
 		} else if (localVersion !== stableVersion) {
 			new Notice(
-				"There is an update available for the Beautitab plugin. Please update to to the latest version to get the latest features!",
+				"There is an update available for the Tab Candy plugin. Please update to to the latest version to get the latest features!",
 				0
 			);
 		}
 	}
 
 	/**
-	 * Hijack new tabs and show Beauitab
+	 * If the user has set a `localBackgroundsDirectory`, scan it for image files
+	 * (non-recursive) and replace `localBackgrounds` with fresh base64 copies of
+	 * whatever is currently in that folder. This is desktop-only (relies on Node's
+	 * `fs`, unavailable on mobile) and is safe to call repeatedly - it always
+	 * re-reads the directory from scratch, so adding/removing files in the folder
+	 * and then reloading/restarting Obsidian (or hitting "Sync now") is enough to
+	 * update the rotation without manually re-selecting images.
+	 */
+	async syncLocalBackgroundsFromDirectory(): Promise<void> {
+		const directory = this.settings.localBackgroundsDirectory;
+
+		// @ts-ignore
+		if (!directory || this.app.isMobile) {
+			return;
+		}
+
+		try {
+			if (
+				!fs.existsSync(directory) ||
+				!fs.statSync(directory).isDirectory()
+			) {
+				new Notice(
+					`Tab Candy: local backgrounds folder "${ directory }" could not be found.`
+				);
+				return;
+			}
+
+			const files = fs
+				.readdirSync(directory)
+				.filter((fileName) =>
+					LOCAL_BACKGROUND_EXTENSIONS.includes(
+						path.extname(fileName).toLowerCase()
+					)
+				)
+				.sort();
+
+			const localBackgrounds = files.map((fileName) => {
+				const filePath = path.join(directory, fileName);
+				const fileData = fs.readFileSync(filePath);
+				const base64Data = fileData.toString("base64");
+				const ext = path.extname(fileName).toLowerCase();
+				const mimeType =
+					ext === ".png"
+						? "image/png"
+						: ext === ".gif"
+						? "image/gif"
+						: ext === ".webp"
+						? "image/webp"
+						: "image/jpeg";
+
+				return `data:${mimeType};base64,${base64Data}`;
+			});
+
+			this.settings.localBackgrounds = localBackgrounds;
+			await this.saveSettings();
+			this.settingsObservable?.setValue(this.settings);
+		} catch (error) {
+			console.error(
+				"Tab Candy: failed to sync local backgrounds from directory",
+				error
+			);
+			new Notice(
+				`Tab Candy: failed to read local backgrounds folder. Check the console for details.`
+			);
+		}
+	}
+
+	/**
+	 * Hijack new tabs and show Tab Candy
 	 */
 	private onLayoutChange(): void {
 		const leaf = this.app.workspace.getMostRecentLeaf();
 		if (leaf?.getViewState().type === "empty") {
 			leaf.setViewState({
-				type: BEAUTITAB_REACT_VIEW,
+				type: TAB_CANDY_REACT_VIEW,
 			});
 		}
 	}
