@@ -6,15 +6,17 @@ Use this checklist alongside [REFACTOR.md](REFACTOR.md). It is ordered by depend
 
 ## 0. Decisions And Baseline
 
+Full rationale for every item below is in [REFACTOR-DECISIONS.md](REFACTOR-DECISIONS.md); current-state capture is in [BASELINE.md](BASELINE.md).
+
 - [x] Confirm the final Obsidian plugin id policy. The plugin id is now `tabcandy`; this is a deliberate installation migration.
-- [ ] Record the supported minimum Obsidian version for the new release based on the APIs actually used.
-- [ ] Confirm the supported Node range as `>=24` for development and CI.
-- [ ] Decide whether bookmarks remain a feature. If retained, accept that they require a guarded private-API adapter until a supported public API exists.
-- [ ] Decide whether folder scanning is non-recursive, matching current behavior, or recursive.
-- [ ] Decide whether Tab Candy should continue hijacking every empty leaf on `layout-change`. Prefer an explicit activation command unless product requirements say otherwise.
-- [ ] Create a disposable development vault. Do not develop against the primary vault.
-- [ ] Capture a baseline of current behavior: settings, custom quotes, built-in backgrounds, vault images, local images, search providers, bookmarks, recent files, view opening, and reload behavior.
-- [ ] Confirm the working tree contains no unrelated changes that should be preserved. Do not use `updates.ts` as a source file for the refactor.
+- [x] Record the supported minimum Obsidian version for the new release based on the APIs actually used. **Decision: `0.15.0`, unchanged** — the newest API in use (`requestUrl`) only requires 0.13.25, and 0.15.0 already clears that.
+- [x] Confirm the supported Node range as `>=24` for development and CI. **Confirmed.**
+- [x] Decide whether bookmarks remain a feature. If retained, accept that they require a guarded private-API adapter until a supported public API exists. **Decision: retain, behind a guarded adapter** that returns an empty list rather than throwing when Bookmarks is disabled/missing/malformed.
+- [x] Decide whether folder scanning is non-recursive, matching current behavior, or recursive. **Decision: non-recursive**, matching current behavior and existing settings copy.
+- [x] Decide whether Tab Candy should continue hijacking every empty leaf on `layout-change`. Prefer an explicit activation command unless product requirements say otherwise. **Decision: explicit activation command + reusable `activateView()` helper is mandatory; blanket hijacking becomes an opt-in setting (default on) layered on the same helper**, not a separate uncontrolled code path.
+- [x] Create a disposable development vault. Do not develop against the primary vault. **Convention documented** (a vault path outside the repo, e.g. `~/.obsidian-dev-vaults/tab-candy/`, wired through the env var that replaces the hard-coded Windows path in §1). Physical vault creation is a local, out-of-sandbox action item for whoever runs the dev loop.
+- [x] Capture a baseline of current behavior: settings, custom quotes, built-in backgrounds, vault images, local images, search providers, bookmarks, recent files, view opening, and reload behavior. **Done — see `BASELINE.md`.**
+- [x] Confirm the working tree contains no unrelated changes that should be preserved. Do not use `updates.ts` as a source file for the refactor. **Verified clean**; `updates.ts` does not exist yet on this branch, so nothing under that name is at risk today, but the exclusion rule stands.
 
 ## 1. Toolchain And Build
 
