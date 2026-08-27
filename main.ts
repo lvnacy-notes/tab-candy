@@ -4,13 +4,13 @@ import {
 	requestUrl
 } from 'obsidian';
 import {
-	ReactView,
-	TAB_CANDY_REACT_VIEW
+	TabCandyView,
+	TAB_CANDY_VIEW_TYPE
 } from './Views/ReactView';
 import Observable from 'src/Utils/Observable';
 import {
-	TabCandyPluginSettingTab,
-	TabCandyPluginSettings,
+	TabCandySettingTab,
+	TabCandySettings,
 	DEFAULT_SETTINGS,
 } from 'src/Settings/Settings';
 import { listBackgroundFilesInFolder } from 'src/services/backgrounds';
@@ -31,7 +31,7 @@ export default class TabCandyPlugin extends Plugin {
 	// other plugin lifecycle method (registerView, addSettingTab, etc.) runs -
 	// safe to assert definite assignment rather than union with `undefined`
 	// and push null-checks into every consumer.
-	settings!: TabCandyPluginSettings;
+	settings!: TabCandySettings;
 	settingsObservable!: Observable;
 
 	async onload() {
@@ -48,12 +48,12 @@ export default class TabCandyPlugin extends Plugin {
 		this.settingsObservable = new Observable(this.settings);
 
 		this.registerView(
-			TAB_CANDY_REACT_VIEW,
+			TAB_CANDY_VIEW_TYPE,
 			(leaf) =>
-				new ReactView(this.app, this.settingsObservable, leaf, this)
+				new TabCandyView(this.app, this.settingsObservable, leaf, this)
 		);
 
-		this.addSettingTab(new TabCandyPluginSettingTab(this.app, this));
+		this.addSettingTab(new TabCandySettingTab(this.app, this));
 
 		this.registerEvent(
 			this.app.workspace.on(
@@ -155,7 +155,7 @@ export default class TabCandyPlugin extends Plugin {
 		const leaf = this.app.workspace.getMostRecentLeaf();
 		if (leaf?.getViewState().type === 'empty') {
 			leaf.setViewState({
-				type: TAB_CANDY_REACT_VIEW,
+				type: TAB_CANDY_VIEW_TYPE,
 			});
 		}
 	}

@@ -1,6 +1,6 @@
 import { App, FuzzySuggestModal } from 'obsidian';
 import {
-	TabCandyPluginSettings,
+	TabCandySettings,
 	SEARCH_PROVIDER,
 } from '../../src/Settings/Settings';
 import { SearchProvider } from '../Types/Interfaces';
@@ -8,15 +8,15 @@ import { SearchProvider } from '../Types/Interfaces';
 /**
  * This class is used to create a modal to choose a search provider from a list of available search providers
  * Available search providers are defined in SEARCH_PROVIDER
- * Used in TabCandyPluginSettingTab
+ * Used in TabCandySettingTab
  */
 class ChooseSearchProvider extends FuzzySuggestModal<SearchProvider> {
-	settings: TabCandyPluginSettings;
+	settings: TabCandySettings;
 	onSubmit: (result: SearchProvider) => void;
 
 	constructor(
 		app: App,
-		settings: TabCandyPluginSettings,
+		settings: TabCandySettings,
 		onSubmit: (result: SearchProvider) => void
 	) {
 		super(app);

@@ -5,9 +5,9 @@ import { ObsidianContext } from '../React/Context/ObsidianAppContext';
 import Observable from 'src/Utils/Observable';
 import TabCandyPlugin from 'main';
 
-export const TAB_CANDY_REACT_VIEW = 'tabcandy-react-view';
+export const TAB_CANDY_VIEW_TYPE = 'tabcandy-react-view';
 
-export class ReactView extends FileView {
+export class TabCandyView extends FileView {
 	root: Root | null = null;
 	app: App;
 	settingsObservable: Observable;
@@ -27,7 +27,7 @@ export class ReactView extends FileView {
 	}
 
 	getViewType() {
-		return TAB_CANDY_REACT_VIEW;
+		return TAB_CANDY_VIEW_TYPE;
 	}
 
 	getDisplayText() {

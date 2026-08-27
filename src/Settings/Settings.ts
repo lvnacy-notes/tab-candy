@@ -46,7 +46,7 @@ export const SEARCH_PROVIDER = [
 	'obsidian-another-quick-switcher',
 ];
 
-export interface TabCandyPluginSettings {
+export interface TabCandySettings {
 	backgroundTheme: BackgroundTheme;
 	customBackground: string;
 	localBackgrounds: string[];
@@ -82,7 +82,7 @@ export interface TabCandyPluginSettings {
 	customQuotes: CustomQuote[];
 }
 
-export const DEFAULT_SETTINGS: TabCandyPluginSettings = {
+export const DEFAULT_SETTINGS: TabCandySettings = {
 	backgroundTheme: BackgroundTheme.SEASONS_AND_HOLIDAYS,
 	customBackground: '',
 	localBackgrounds: [],
@@ -106,7 +106,7 @@ export const DEFAULT_SETTINGS: TabCandyPluginSettings = {
 	customQuotes: [],
 };
 
-export class TabCandyPluginSettingTab extends PluginSettingTab {
+export class TabCandySettingTab extends PluginSettingTab {
 	plugin: TabCandyPlugin;
 
 	constructor(app: App, plugin: TabCandyPlugin) {
@@ -219,13 +219,13 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 		});
 
 		const localBackgroundsDiv = containerEl.createDiv({
-			cls: 'tabcandysettings-localbackgrounds',
+			cls: 'tabcandy-settings-localbackgrounds',
 		});
 
 		this.plugin.settings.localBackgrounds.forEach(
 			(localBackground, index) => {
 				const backgroundDiv = localBackgroundsDiv.createDiv({
-					cls: 'tabcandysettings-localbackgrounds-background',
+					cls: 'tabcandy-settings-localbackgrounds-background',
 				});
 				backgroundDiv.createEl('img', {
 					attr: {
@@ -234,7 +234,7 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 				});
 				backgroundDiv.createEl('button', {
 					text: 'x',
-					cls: 'tabcandysettings-localbackgrounds-background-delete',
+					cls: 'tabcandy-settings-localbackgrounds-background-delete',
 				});
 				backgroundDiv.addEventListener('click', () => {
 					new ConfirmModal(
@@ -257,12 +257,12 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 
 		if (this.plugin.settings.backgroundFiles.length) {
 			const syncedBackgroundsDiv = containerEl.createDiv({
-				cls: 'tabcandysettings-localbackgrounds',
+				cls: 'tabcandy-settings-localbackgrounds',
 			});
 
 			this.plugin.settings.backgroundFiles.forEach((filePath) => {
 				const backgroundDiv = syncedBackgroundsDiv.createDiv({
-					cls: 'tabcandysettings-localbackgrounds-background',
+					cls: 'tabcandy-settings-localbackgrounds-background',
 				});
 				backgroundDiv.createEl('img', {
 					attr: {

@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "ARCHIVE/CHANGELOG-2026-08-26.md",
+                "file": "REFACTOR docs/REFACTOR-IMPLEMENTATION-CHECKLIST.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "CHANGELOG-2026-08-26"
+              "title": "REFACTOR-IMPLEMENTATION-CHECKLIST"
             }
           },
           {
@@ -202,8 +202,12 @@
   },
   "active": "1ee69819bac63c8d",
   "lastOpenFiles": [
-    "REFACTOR docs/REFACTOR-IMPLEMENTATION-CHECKLIST.md",
+    "ARCHIVE/CHANGELOG-2026-08-27.md",
+    "node_modules/@typescript",
+    "node_modules/@stylistic",
     "ARCHIVE/CHANGELOG-2026-08-26.md",
+    "ARCHIVE/CHANGELOG-2026-08-26-1738ab6.md",
+    "REFACTOR docs/REFACTOR-IMPLEMENTATION-CHECKLIST.md",
     "dist/styles.css",
     "dist/manifest.json",
     "dist/main.js",
@@ -217,8 +221,6 @@
     "src/services/backgrounds.ts",
     "src/services",
     "src/Utils/mainUtils.ts",
-    "src/Utils/index.ts",
-    "src/Utils/capitalizeFirstLetter.ts",
     "tab-candy-changes/REFACTOR docs/REFACTOR-IMPLEMENTATION-CHECKLIST.md",
     "tab-candy-changes/REFACTOR docs/REFACTOR-DECISIONS.md",
     "REFACTOR docs/temp.md"

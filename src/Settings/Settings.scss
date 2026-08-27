@@ -1,8 +1,8 @@
-.tabcandysettings-localbackgrounds {
+.tabcandy-settings-localbackgrounds {
 	display: flex;
 	gap: 8px;
 
-	.tabcandysettings-localbackgrounds-background {
+	.tabcandy-settings-localbackgrounds-background {
 		position: relative;
 
 		img {
@@ -10,7 +10,7 @@
 			height: 100px;
 		}
 
-		.tabcandysettings-localbackgrounds-background-delete {
+		.tabcandy-settings-localbackgrounds-background-delete {
 			position: absolute;
 			top: 0;
 			right: 0;

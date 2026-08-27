@@ -34,7 +34,7 @@ class CustomQuotesModel extends Modal {
 
 		contentEl.createEl('h2', { text: 'Custom quotes' });
 
-		const table = contentEl.createEl('table', { cls: 'customQuotesTable' });
+		const table = contentEl.createEl('table', { cls: 'tabcandy-customquotes-table' });
 		const thead = table.createEl('thead');
 		const headerRow = thead.createEl('tr');
 		headerRow.createEl('th');

@@ -13,7 +13,7 @@ import getBackground from '../../Utils/getBackground';
 import { getBackgroundResourcePath } from '../../../src/services/backgrounds';
 import getTimeOfDayGreeting from '../../Utils/getTimeOfDayGreeting';
 import { getBookmarks } from '../../Utils/getBookmarks';
-import { TabCandyPluginSettings } from '../../../src/Settings/Settings';
+import { TabCandySettings } from '../../../src/Settings/Settings';
 import getQuote from '../../Utils/getQuote';
 import { BackgroundTheme } from '../../../src/Types/Enums';
 
@@ -47,7 +47,7 @@ const App = ({
 		content: string;
 		author: string;
 	} | null>(null);
-	const [settings, setSettings] = useState<TabCandyPluginSettings>(
+	const [settings, setSettings] = useState<TabCandySettings>(
 		settingsObservable.getValue()
 	);
 	const [time, setTime] = useState(getTime(settings.timeFormat));
@@ -66,8 +66,8 @@ const App = ({
 			...settings.localBackgrounds,
 			...(obsidian
 				? settings.backgroundFiles.map((filePath) =>
-						getBackgroundResourcePath(obsidian, filePath)
-				  )
+					getBackgroundResourcePath(obsidian, filePath)
+				)
 				: []),
 		],
 		[settings.localBackgrounds, settings.backgroundFiles, obsidian]
@@ -135,7 +135,7 @@ const App = ({
 	 */
 	useEffect(() => {
 		const unsubscribe = settingsObservable.onChange(
-			(newSettings: TabCandyPluginSettings) => {
+			(newSettings: TabCandySettings) => {
 				setSettings(newSettings);
 			}
 		);
