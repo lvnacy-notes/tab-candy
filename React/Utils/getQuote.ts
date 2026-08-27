@@ -1,6 +1,6 @@
-import { requestUrl } from "obsidian";
-import { QUOTE_SOURCE } from "src/Types/Enums";
-import { CustomQuote } from "src/Types/Interfaces";
+import { requestUrl } from 'obsidian';
+import { QUOTE_SOURCE } from 'src/Types/Enums';
+import { CustomQuote } from 'src/Types/Interfaces';
 
 /**
  * Based on the configured quoteSource, gets a random quote from Quoteable, a custom quote, or both.
@@ -22,7 +22,7 @@ const getQuote = async (
 	}
 
 	if (actualQuoteSource === QUOTE_SOURCE.QUOTEABLE) {
-		quote = await requestUrl("https://api.quotable.io/random").then(
+		quote = await requestUrl('https://api.quotable.io/random').then(
 			async (res) => {
 				if (res.status === 200) {
 					return await res.json;

@@ -1,11 +1,11 @@
-import { App, FileView, WorkspaceLeaf } from "obsidian";
-import { Root, createRoot } from "react-dom/client";
-import ReactApp from "../React/Components/App/App";
-import { ObsidianContext } from "../React/Context/ObsidianAppContext";
-import Observable from "src/Utils/Observable";
-import TabCandyPlugin from "main";
+import { App, FileView, WorkspaceLeaf } from 'obsidian';
+import { Root, createRoot } from 'react-dom/client';
+import ReactApp from '../React/Components/App/App';
+import { ObsidianContext } from '../React/Context/ObsidianAppContext';
+import Observable from 'src/Utils/Observable';
+import TabCandyPlugin from 'main';
 
-export const TAB_CANDY_REACT_VIEW = "tabcandy-react-view";
+export const TAB_CANDY_REACT_VIEW = 'tabcandy-react-view';
 
 export class ReactView extends FileView {
 	root: Root | null = null;
@@ -31,11 +31,11 @@ export class ReactView extends FileView {
 	}
 
 	getDisplayText() {
-		return "New tab";
+		return 'New tab';
 	}
 
 	getIcon() {
-		return "";
+		return '';
 	}
 
 	async onOpen() {
@@ -48,7 +48,7 @@ export class ReactView extends FileView {
 				/>
 			</ObsidianContext.Provider>
 		);
-		this.containerEl.addClass("tabcandy");
+		this.containerEl.addClass('tabcandy');
 	}
 
 	async onClose() {

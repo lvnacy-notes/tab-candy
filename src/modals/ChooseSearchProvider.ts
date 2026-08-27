@@ -1,9 +1,9 @@
-import { App, FuzzySuggestModal } from "obsidian";
+import { App, FuzzySuggestModal } from 'obsidian';
 import {
 	TabCandyPluginSettings,
 	SEARCH_PROVIDER,
-} from "../../src/Settings/Settings";
-import { SearchProvider } from "../Types/Interfaces";
+} from '../../src/Settings/Settings';
+import { SearchProvider } from '../Types/Interfaces';
 
 /**
  * This class is used to create a modal to choose a search provider from a list of available search providers
@@ -13,7 +13,6 @@ import { SearchProvider } from "../Types/Interfaces";
 class ChooseSearchProvider extends FuzzySuggestModal<SearchProvider> {
 	settings: TabCandyPluginSettings;
 	onSubmit: (result: SearchProvider) => void;
-	result: SearchProvider;
 
 	constructor(
 		app: App,
@@ -28,7 +27,7 @@ class ChooseSearchProvider extends FuzzySuggestModal<SearchProvider> {
 	getItems(): SearchProvider[] {
 		//@ts-ignore
 		const allCommands = Object.entries(this.app.commands.commands).filter(
-			(pluginId) => SEARCH_PROVIDER.includes(pluginId[0].split(":")[0])
+			(pluginId) => SEARCH_PROVIDER.includes(pluginId[0].split(':')[0])
 		);
 		const searchProviders: SearchProvider[] = [];
 		allCommands.forEach((command) => {
@@ -45,7 +44,6 @@ class ChooseSearchProvider extends FuzzySuggestModal<SearchProvider> {
 	}
 
 	onChooseItem(item: SearchProvider, evt: MouseEvent | KeyboardEvent): void {
-		this.result = item;
 		this.onSubmit(item);
 		this.close();
 	}

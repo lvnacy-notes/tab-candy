@@ -1,4 +1,3 @@
-
 import { defineConfig } from 'eslint/config';
 import stylistic from '@stylistic/eslint-plugin';
 import tseslint from '@typescript-eslint/eslint-plugin';
@@ -10,6 +9,7 @@ export default defineConfig([
 	{
 		ignores: [
 			'node_modules/**',
+			'dist/**',
 			'test/**',
 			'main.js',
 			'*.map',
@@ -19,7 +19,7 @@ export default defineConfig([
 		]
 	},
 	{
-		files: ['**/*.ts', '**/*.js'],
+		files: ['**/*.ts', '**/*.tsx', '**/*.js'],
 		languageOptions: {
 			parser: tsparser,
 			parserOptions: {

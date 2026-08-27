@@ -1,251 +1,496 @@
-# Tab Candy Implementation Checklist
+# Decisions and Baseline — Resolution Log
 
-Use this checklist alongside [REFACTOR.md](REFACTOR.md). It is ordered by dependency: make the decisions that affect compatibility first, then establish a clean toolchain, migrate data and runtime behavior, restructure the UI, and validate release readiness.
+This settles every item in [REFACTOR-IMPLEMENTATION-CHECKLIST.md](REFACTOR-IMPLEMENTATION-CHECKLIST.md)
+§0, plus the decisions and notable findings from working through §1. Each
+entry states the decision, the reasoning, and what (if anything) it locks
+in for later sections. See [BASELINE.md](BASELINE.md) for the full
+current-behavior capture referenced throughout.
 
-`updates.ts` is comparison material and is intentionally excluded from all rename, cleanup, lint, deletion, and validation work below.
+---
 
-## 0. Decisions And Baseline
+## Plugin id policy — **decided (already applied)**
 
-Full rationale for every item below is in [REFACTOR-DECISIONS.md](REFACTOR-DECISIONS.md); current-state capture is in [BASELINE.md](BASELINE.md).
+`tabcandy` is the id, `Tab Candy` is the display name, both already correct
+in `manifest.json`, `manifest-beta.json`, and `package.json`. Since Obsidian
+treats a plugin id as an installation identity, anyone on the old
+`beautitab` id gets treated as a fresh install, not an upgrade. That's
+accepted as a deliberate, one-time migration cost rather than something to
+work around with compatibility shims. No further action here.
 
-- [x] Confirm the final Obsidian plugin id policy. The plugin id is now `tabcandy`; this is a deliberate installation migration.
-- [x] Record the supported minimum Obsidian version for the new release based on the APIs actually used. **Decision: `0.15.0`, unchanged** — the newest API in use (`requestUrl`) only requires 0.13.25, and 0.15.0 already clears that.
-- [x] Confirm the supported Node range as `>=24` for development and CI. **Confirmed.**
-- [x] Decide whether bookmarks remain a feature. If retained, accept that they require a guarded private-API adapter until a supported public API exists. **Decision: retain, behind a guarded adapter** that returns an empty list rather than throwing when Bookmarks is disabled/missing/malformed.
-- [x] Decide whether folder scanning is non-recursive, matching current behavior, or recursive. **Decision: non-recursive**, matching current behavior and existing settings copy.
-- [x] Decide whether Tab Candy should continue hijacking every empty leaf on `layout-change`. Prefer an explicit activation command unless product requirements say otherwise. **Decision: explicit activation command + reusable `activateView()` helper is mandatory; blanket hijacking becomes an opt-in setting (default on) layered on the same helper**, not a separate uncontrolled code path.
-- [x] Create a disposable development vault. Do not develop against the primary vault. **Convention documented** (a vault path outside the repo, e.g. `~/.obsidian-dev-vaults/tab-candy/`, wired through the env var that replaces the hard-coded Windows path in §1). Physical vault creation is a local, out-of-sandbox action item for whoever runs the dev loop.
-- [x] Capture a baseline of current behavior: settings, custom quotes, built-in backgrounds, vault images, local images, search providers, bookmarks, recent files, view opening, and reload behavior. **Done — see `BASELINE.md`.**
-- [x] Confirm the working tree contains no unrelated changes that should be preserved. Do not use `updates.ts` as a source file for the refactor. **Verified clean**; `updates.ts` does not exist yet on this branch, so nothing under that name is at risk today, but the exclusion rule stands.
+## Minimum supported Obsidian version — **0.15.0, unchanged**
 
-## 1. Toolchain And Build
+Walking the APIs the refactor actually commits to using:
 
-- [ ] Add `engines.node` to `package.json` with the agreed Node 24+ range.
-- [ ] Upgrade `@types/node` to match Node 24.
-- [ ] Upgrade TypeScript, esbuild, React typings, and ESLint packages as a coordinated update.
-- [ ] Add the flat-config dependencies imported by `eslint.config.js`: `eslint`, `@stylistic/eslint-plugin`, and `eslint-plugin-obsidianmd` at compatible versions.
-- [ ] Update the `obsidian` package to the current API declarations used for implementation.
-- [ ] Remove the direct `electron` dependency after runtime Electron usage is gone.
-- [ ] Add package scripts for `typecheck`, `lint`, and tests.
-- [ ] Make `build` run typecheck and the production bundle in sequence.
-- [ ] Update `eslint.config.js` to lint `.ts`, `.tsx`, and intentionally selected build files.
-- [ ] Correct stale flat-config ignore entries for `.mjs` files and generated output.
-- [ ] Remove `.eslintignore` only after its exclusions are represented in flat config.
-- [ ] Update `tsconfig.json` to include `.ts` and `.tsx` files.
-- [ ] Remove obsolete TypeScript options such as `baseUrl` and legacy `moduleResolution` if the final import strategy no longer needs them.
-- [ ] Choose one import strategy: relative imports or one documented alias configuration.
-- [ ] Evaluate `noUnusedLocals` and `noUnusedParameters` after the rename cleanup.
-- [ ] Replace the hard-coded Windows development output path with an environment variable or documented local setting.
-- [ ] Confirm the emitted browser target remains compatible with Obsidian desktop and mobile WebViews.
-- [ ] Decide whether to keep JSON package metadata imports or pass the plugin version through the build environment.
-- [ ] Run `npm install` and commit the resulting lockfile changes only with the dependency update.
-- [ ] Run `npm run typecheck`.
-- [ ] Run `npm run lint`.
-- [ ] Run `npm run build`.
+- `ItemView`, `PluginSettingTab`, `Setting`, `Modal`/`FuzzySuggestModal` —
+  present since the earliest plugin API, far below any version under
+  consideration.
+- `registerEvent`, `registerDomEvent`, `registerInterval`,
+  `workspace.getLeavesOfType`, `workspace.revealLeaf` — all long-standing,
+  pre-1.0 APIs.
+- `vault.getFiles`, `vault.getAbstractFileByPath`, `vault.adapter.list`,
+  `vault.adapter.readBinary`, `vault.readBinary` — public vault/adapter
+  surface, also pre-1.0.
+- `requestUrl` — the newest API in the actual usage list, and it requires
+  API version **0.13.25**.
 
-## 2. Branding And Metadata
+The binding constraint is `requestUrl` at 0.13.25, and the manifest already
+declares `0.15.0`, which clears that with room to spare. There's no API
+reason to move the floor in either direction, so it stays at `0.15.0`. No
+manifest edit needed for this reason alone; §10 will still touch
+`manifest.json`/`manifest-beta.json`/`versions.json` for the version bump
+that accompanies the actual release.
 
-- [x] Apply the approved display name, `Tab Candy`, to maintained source and documentation.
-- [ ] Apply the approved class and identifier naming convention: `TabCandyPlugin`, `TabCandySettings`, `TabCandyView`, and consistent `tabcandy` or `tab-candy` CSS names.
-- [x] Update `manifest.json`.
-- [x] Update `manifest-beta.json`.
-- [x] Update `package.json`; this repository does not use a tracked `package-lock.json`.
-- [x] Update release workflow plugin paths under `.github/workflows/`.
-- [ ] Update README title, prose, installation URL, links, and image alt text.
-- [x] Update stale comments and modal descriptions that say Beautitab.
-- [x] Search maintained files for `Beautitab`, `beautitab`, and `obsidian-beautitab`.
-- [x] Review every remaining match and document intentional historical references, if any. Remaining matches are limited to historical attribution and refactor/checklist context.
-- [ ] Keep `updates.ts` unchanged even if it contains old branding.
+If a later section pulls in something genuinely newer (e.g. a public
+bookmarks API if Obsidian ships one), that's the trigger to revisit this
+number — not before.
 
-## 3. Settings Schema And Persistence
+## Node range — **`>=24` for development and CI, confirmed**
 
-- [ ] Define a settings schema version.
-- [ ] Add a pure `normalizeSettings()` function that merges defaults and validates loaded values.
-- [ ] Validate enum-backed settings at the load boundary instead of trusting `data.json`.
-- [ ] Validate search provider objects and fall back to the built-in provider when malformed.
-- [ ] Define the new vault-relative background fields, for example `backgroundsFolder` and `backgroundFiles`.
-- [ ] Decide how legacy `localBackgroundsDirectory` and base64 `localBackgrounds` values are handled.
-- [ ] Show a one-time migration notice for old OS-folder settings.
-- [ ] Do not read legacy OS files or silently copy them into plugin data.
-- [ ] Preserve ordinary display settings and custom quotes during migration.
-- [ ] Keep image bytes and fetched quote data out of persisted plugin settings.
-- [ ] Add a typed settings store with `get`, `update`, `subscribe`, and persistence, or implement an equally typed narrow alternative.
-- [ ] Replace the untyped `Observable`.
-- [ ] Ensure unsubscribe removes the subscriber rather than retaining it.
-- [ ] Batch or debounce text-setting saves and avoid rebuilding the entire settings screen on each keystroke.
-- [ ] Test fresh defaults, partial settings, malformed settings, legacy settings, and repeated migrations.
+This is a toolchain-only constraint; nothing about it touches the bundled
+plugin's runtime target (that's `esbuild`'s `target`, handled in §1).
+Node 24 is on Node's LTS track and is a reasonable, forward-looking floor
+for a project doing a from-scratch dependency refresh anyway. Confirmed as
+stated; `package.json#engines.node` and CI runner versions get set to match
+in §1 — this entry just locks the number so §1 isn't re-litigating it.
 
-## 4. Vault-Based Backgrounds And Mobile Support
+## Bookmarks — **keep, behind a guarded adapter**
 
-- [ ] Remove runtime imports of Node `fs` and `path` from maintained plugin code.
-- [ ] Remove runtime Electron imports and native file/folder dialogs.
-- [ ] Centralize supported image extensions and MIME types, including the intended `jpg`, `jpeg`, `png`, `webp`, and `gif` behavior.
-- [ ] Implement vault-relative folder normalization and validation.
-- [ ] Implement folder discovery with `app.vault.adapter.list(folderPath)`.
-- [ ] Filter unsupported files and define the recursive/non-recursive behavior.
-- [ ] Load image bytes with `app.vault.adapter.readBinary(filePath)`.
-- [ ] Use `app.vault.readBinary(TFile)` where a `TFile` is already available and that is simpler.
-- [ ] Convert binary data to a browser-compatible object URL or data URL outside settings storage.
-- [ ] Revoke object URLs when backgrounds change and when the view closes.
-- [ ] Cache only vault-relative paths and lightweight metadata.
-- [ ] Handle missing folders, empty folders, unsupported files, deleted files, renamed files, and read failures gracefully.
-- [ ] Make “Sync now” available on desktop and mobile.
-- [ ] Replace the OS folder picker with a vault-folder chooser.
-- [ ] Expand the vault image picker to every supported image format.
-- [ ] Consider vault create/modify/delete/rename events for cache invalidation.
-- [ ] Test with a synced vault on desktop.
-- [ ] Test with the same synced vault on mobile.
-- [ ] Test after adding, modifying, renaming, deleting, and syncing image files.
+Kept as a feature. It's shipped, has a settings section and two source
+modes (all / by group), and there's no supported public bookmarks API to
+replace it with yet — removing it would be a real regression for existing
+users, not a cleanup.
 
-## 5. Public Obsidian API And Lifecycle
+The trade-off is explicit and accepted: `internalPlugins.plugins.bookmarks`
+is a private implementation detail that can change or vanish without
+notice. Per REFACTOR.md's bookmarks section, this gets isolated behind one
+adapter (`services/bookmarks.ts` in the proposed structure) that:
 
-- [ ] Change the custom view from `FileView` to `ItemView` because Tab Candy is not file-backed.
-- [ ] Keep one stable exported view type constant.
-- [ ] Implement current `ItemView` lifecycle methods with current typings.
-- [ ] Clear the view content element before mounting React.
-- [ ] Unmount the React root in `onClose()`.
-- [ ] Remove global view-instance assumptions.
-- [ ] Use `workspace.getLeavesOfType()` when locating existing Tab Candy views.
-- [ ] Add or refine an activation helper that reuses an existing leaf, creates one if necessary, and reveals it.
-- [ ] Register Obsidian events with `registerEvent()`.
-- [ ] Register long-lived DOM listeners with `registerDomEvent()`.
-- [ ] Register plugin-owned intervals with `registerInterval()`.
-- [ ] Remove the empty `onunload()` if no explicit cleanup remains.
-- [ ] Remove production mobile-emulation code and its `@ts-ignore` usage.
-- [ ] Replace enum-narrowed `Setting` callbacks with string-to-enum validation at the boundary.
-- [ ] Remove avoidable `@ts-ignore` directives.
-- [ ] Run a search for private/internal API usage and classify every remaining match.
+- returns an empty list when Bookmarks is disabled, missing, or
+  malformed — never throws into the render path (today's `getBookmarks.ts`
+  has no such guard);
+- is the *only* place `internalPlugins` gets touched;
+- gets swapped out wholesale, with no other code changes, if/when Obsidian
+  ships a public bookmarks API.
 
-## 6. Commands, Bookmarks, And Network Integrations
+This decision feeds §5 and §6 directly (adapter isolation) and §9 (the
+disabled/missing-Bookmarks test cases already listed there).
 
-### Commands
+## Folder scanning — **non-recursive, matching current behavior**
 
-- [ ] Stop enumerating `this.app.commands.commands` from core UI code.
-- [ ] Define supported search providers as explicit command ids or isolated provider adapters.
-- [ ] Add runtime availability checks that do not expose private registries throughout the app.
-- [ ] Keep `switcher:open` as the default only after verifying it through the current API/runtime behavior.
-- [ ] Show a clear Notice and fail gracefully when a configured provider is unavailable.
+The existing OS-folder sync is non-recursive today, and the settings copy
+already tells users that ("not including subfolders"). Vault-relative
+scanning in §4 keeps that same contract: `app.vault.adapter.list()` against
+the configured folder, one level deep, no subfolder walk.
 
-### Bookmarks
+Reasoning, beyond just "match what's there": recursive traversal has real
+costs a toggle-free default shouldn't impose unasked — large vaults, deeply
+nested asset folders, or accidental symlink cycles all turn a folder-list
+call into something slower and harder to reason about. Non-recursive is
+also just less to build and test right now. If recursive scanning becomes
+a real ask, it's a well-scoped follow-up feature (a boolean setting plus a
+depth-aware `list()` walk), not something to bolt on speculatively during
+a mobile-portability refactor.
 
-- [ ] Decide whether to remove bookmarks, retain them as an optional integration, or replace the implementation when a supported API is available.
-- [ ] If retained, isolate all `internalPlugins` access in one guarded adapter.
-- [ ] Return an empty result when Bookmarks is disabled, unavailable, malformed, or missing.
-- [ ] Type bookmark groups and entries instead of using `any` throughout the core path.
-- [ ] Test all-bookmarks, group-bookmarks, nested groups, empty groups, and missing Bookmarks cases.
+## Explicit activation vs. hijacking every empty leaf — **explicit command, default-on convenience toggle**
 
-### Network requests
+Today, `onLayoutChange()` force-replaces the most recently used leaf on
+*every* `layout-change` event if its type is `"empty"` — no setting, no way
+to opt out short of disabling the plugin.
 
-- [ ] Keep `requestUrl()` as the external request boundary.
-- [ ] Make quote failures return a predictable fallback state.
-- [ ] Make version checking best-effort and non-blocking for plugin startup.
-- [ ] Add appropriate error handling and cancellation/timeout behavior supported by the current API.
-- [ ] Avoid making view registration depend on network availability.
+Decision: add an explicit, narrowly-scoped activation path — a command
+(e.g. "Open Tab Candy") plus a reusable `activateView()` helper that checks
+`workspace.getLeavesOfType()` first, reuses an existing leaf if one exists,
+otherwise creates one, then calls `workspace.revealLeaf()`. That becomes
+the one and only supported way to *summon* Tab Candy on demand.
 
-## 7. React Restructure
+Separately, keep the "replace new empty tabs automatically" behavior as an
+opt-in **setting**, defaulted **on** so today's out-of-the-box experience
+doesn't regress for existing users. The setting drives the same narrow
+activation path rather than a blanket "grab whatever the most-recent-leaf
+API hands back" check — the point isn't to remove the convenience, it's to
+stop treating uncontrolled event-driven leaf hijacking as the *only* entry
+point with no off switch and no reuse-awareness.
 
-- [ ] Reduce `App.tsx` to a composition root and presentation orchestration.
-- [ ] Move background discovery/loading and URL cleanup into a background service or hook.
-- [ ] Move recent-file queries into a typed data service or hook.
-- [ ] Move bookmarks behind the bookmark adapter.
-- [ ] Move quote loading, error, and loading state into a quote service or hook.
-- [ ] Move command-provider availability and execution behind a command service.
-- [ ] Move time ticking and formatting into a focused hook or pure utility.
-- [ ] Isolate icon adaptation in one component.
-- [ ] Remove the context if the view can pass a small typed model and callbacks directly.
-- [ ] Keep only meaningful presentational boundaries, such as `SearchButton`, `RecentFiles`, `Bookmarks`, `Quote`, and `BackgroundSurface`.
-- [ ] Avoid creating a component for every small text block.
-- [ ] Replace `dangerouslySetInnerHTML` where practical; otherwise isolate and constrain it.
-- [ ] Ensure keyboard search behavior works with mobile and desktop input expectations.
-- [ ] Test loading, empty, error, and populated render states.
-- [ ] Test view unmount, settings updates, timer cleanup, and background cleanup.
+This is the one §0 call that most directly shapes §5's lifecycle work, so
+it's worth being blunt about the trade being made: a little more settings
+surface, in exchange for an explicit, testable activation path that
+doesn't depend on scraping `getMostRecentLeaf()` on every layout event.
 
-## 8. Consolidate The File Structure
+## Disposable development vault — **documented, not yet created**
 
-- [ ] Move maintained source under a coherent `src/` structure.
-- [ ] Choose a small number of meaningful areas, such as `app`, `services`, `ui`, `settings`, and `types`.
-- [ ] Combine `Enums.ts` and `Interfaces.ts` into `types.ts` if the type surface remains small.
-- [ ] Combine tiny time utilities if doing so improves discoverability.
-- [ ] Fold the capitalization helper into the settings option-label code if it has no other meaningful consumer.
-- [ ] Keep modals separate only when their behavior warrants it; otherwise group related small modals.
-- [ ] Remove the context when it no longer provides a useful dependency boundary.
-- [ ] Remove the custom `Observable` after the settings store migration is complete.
-- [ ] Remove dead imports, unused fields, unused result properties, and `Function`-typed callbacks.
-- [ ] Keep `screenshots/` and release documentation unless there is a separate product decision to remove them.
-- [ ] Do not delete, rename, or lint-scope `updates.ts` as part of this work.
-- [ ] Update esbuild entry points and import paths after moves.
-- [ ] Run typecheck immediately after structural moves.
+Decision: development must happen against a vault that lives outside this
+repository and is never the user's primary/production vault — something
+like `~/.obsidian-dev-vaults/tab-candy/` locally, or a path pointed to by an
+environment variable once §1 removes the hard-coded
+`E:/Documents/PersonalObsidianVault/...` output path currently baked into
+`esbuild.config.mjs` (which, notably, still points at a *different*,
+previous plugin's folder — `obsidian-canvas-dailynote` — left over from
+before this codebase became Beautitab/Tab Candy at all).
 
-## 9. Tests And CI
+Being straight about scope: I can write the convention and wire the future
+env var, but actually creating a vault means opening the Obsidian app on a
+real machine — that's outside what this sandbox can do. This entry records
+the decision and the naming convention so §1's env-var work has a concrete
+target; the one-time local setup step still belongs to whoever's running
+the dev loop.
 
-- [ ] Add unit tests for settings defaults and normalization.
-- [ ] Add unit tests for settings migration and legacy data handling.
-- [ ] Add unit tests for enum/provider validation.
-- [ ] Add unit tests for image-extension and MIME mapping.
-- [ ] Add fake-adapter tests for `list()` and `readBinary()`.
-- [ ] Test missing folders, nested folders, unsupported files, unreadable files, and deleted files.
-- [ ] Test object URL creation and revocation.
-- [ ] Add quote fallback and network-failure tests.
-- [ ] Add bookmark flattening and disabled-plugin tests, if bookmarks remain.
-- [ ] Add React tests for major display states and user actions.
-- [ ] Add view lifecycle tests for open, close, recreate, and multiple leaves.
-- [ ] Add CI jobs for Node 24+, typecheck, lint, tests, and production build.
-- [ ] Ensure CI never requires an Obsidian desktop or Electron runtime for unit tests.
-- [ ] Keep a manual desktop/mobile test matrix for APIs that cannot be fully mocked.
+## Baseline capture — **done**
 
-## 10. Release And Documentation
+See [BASELINE.md](BASELINE.md): settings and defaults, all three background
+sources (themed, custom URL, local — folder-synced/manually-added-desktop/
+manually-added-vault), both search buttons and provider resolution,
+bookmarks (both modes), quotes (all three sources), recent files, view
+opening/hijacking, and reload/startup behavior (including the sticky
+version-check `Notice` and the dev-only mobile emulation block). Every
+behavior change from here forward should be checked against that document;
+anything not called out there as an intentional §0-approved delta is a
+regression.
 
-- [ ] Update `manifest.json` version and minimum Obsidian version.
-- [ ] Update `manifest-beta.json` consistently.
-- [ ] Update `versions.json` for backward-compatible version/minimum-version mappings.
-- [ ] Verify the release workflow uses the approved plugin id and output paths.
-- [ ] Confirm the release artifact contains `manifest.json`, bundled `main.js`, and compiled styles.
-- [ ] Update README setup instructions for Node 24+.
-- [ ] Update README background instructions to describe vault folders and mobile support.
-- [ ] Remove claims that local computer folders are supported if that feature is removed.
-- [ ] Document migration behavior for existing users.
-- [ ] Document desktop and mobile verification results.
-- [ ] Review screenshots and alt text for old branding.
-- [ ] Check the community plugin listing requirements before publishing.
+## Working tree / `updates.ts` — **verified clean**
 
-## 11. Final Audit And Sign-Off
+`git log` on `chore/refactor` shows exactly one commit (the rebrand +
+planning commit) on top of imported history — no stray or unrelated
+uncommitted changes. `updates.ts` doesn't exist on this branch yet, so
+there's currently nothing under that name to mistakenly pull into the
+refactor as a source file; the exclusion rule stands for whenever it
+lands.
 
-- [ ] Run `npm run typecheck` successfully.
-- [ ] Run `npm run lint` successfully.
-- [ ] Run the full test suite successfully.
-- [ ] Run `npm run build` successfully.
-- [x] Search maintained files for `Beautitab`, `beautitab`, and `obsidian-beautitab`; review every match. Remaining matches are intentional historical attribution and refactor/checklist context.
-- [ ] Search maintained runtime files for `fs`, `path`, `electron`, and Node-only globals.
-- [ ] Search maintained runtime files for `internalPlugins`, private command registries, and `@ts-ignore`.
-- [ ] Verify `updates.ts` was not modified by the refactor.
-- [ ] Verify no image bytes are stored in plugin settings after migration.
-- [ ] Verify vault images work on desktop and mobile.
-- [ ] Verify plugin reload and view recreation do not leak timers, subscriptions, or object URLs.
-- [ ] Verify missing optional integrations fail gracefully.
-- [ ] Verify fresh installation and upgrade from the abandoned version.
-- [ ] Verify multiple view leaves and closing/reopening behavior.
-- [ ] Verify release artifacts in a clean install.
-- [ ] Record the final supported Node and minimum Obsidian versions.
-- [ ] Publish only after the manual desktop/mobile matrix is green.
+---
 
-## Suggested Milestones
+# §1 Decisions — Toolchain And Build
 
-### Milestone 1: Buildable Baseline
+Recorded the same way as §0 above: full detail and file-by-file findings
+live in the checklist itself under §1; this is the durable record of the
+calls made, for anyone who lands on this doc without reading the checklist
+line by line.
 
-Complete sections 0, 1, and 2. The renamed project should type-check, lint, build, and have a documented plugin-id decision.
+## TypeScript version — **hold at 5.9.3, run TS7 as a non-gating second track**
 
-### Milestone 2: Mobile-Safe Data Layer
+TypeScript 7 (the native/Go port) is GA and is `latest` on npm, but
+`typescript-eslint` — and by extension `eslint-plugin-obsidianmd`, which
+depends on it — has a hard peer ceiling of `typescript <6.1.0`, and a
+GitHub issue asking for TS7 support was closed "not planned" on GA day,
+blocked on TS7 shipping a stable programmatic API (expected in 7.1,
+described upstream as "several months out" from 7.0's GA).
 
-Complete sections 3 and 4. Vault-relative backgrounds, settings migration, and binary loading should work without Node or Electron runtime APIs.
+Decision: `typescript@5.9.3` stays the checked-in source of truth driving
+`npm run typecheck` and eventual type-aware lint rules. `@typescript/native-preview`
+(the `tsgo` binary) is added as a second, explicitly non-gating
+`npm run typecheck:fast` script — not wired into `build` or CI. This is a
+real speed option for local dev today without breaking the lint story that
+already depends on mainline TypeScript. Revisit once `typescript-eslint`
+supports 7.1+; that's the trigger, not a calendar date.
 
-### Milestone 3: API-Safe Runtime
+Worth recording since it surprised both of us during implementation:
+`tsc` and `tsgo`, run against the literal same `tsconfig.json`, disagreed
+on two things — (1) `tsgo` doesn't auto-include ambient `@types/*` packages
+the way `tsc` does, which was masking a real problem (`@types/node`'s own
+`.d.ts` hardcodes a `lib="es2020"` reference that was silently overriding
+this project's deliberately-narrower declared `lib`); and (2) `tsgo`
+defaults `strictPropertyInitialization`/`strictFunctionTypes` to on even
+when neither `strict` nor those flags are set, while `tsc` correctly
+leaves them off absent explicit configuration. Confirmed the second one
+by toggling those two flags on in `tsc` directly and getting a
+byte-identical error list to `tsgo`'s — not a `tsgo` bug in the "broken"
+sense, just an undocumented default divergence between the two.
 
-Complete sections 5 and 6. The custom view should use `ItemView`, lifecycle cleanup should be explicit, and private integrations should be isolated or removed.
+## Strictness — **`strictPropertyInitialization` and `strictFunctionTypes` turned on, permanently**
 
-### Milestone 4: Smaller React Surface
+Both flags were off (implicitly, since `strict` was never set). Turning
+them on surfaced 10 real errors, not noise: two plugin fields and two modal
+fields set outside the constructor with no compiler acknowledgment; a
+real, already-anticipated bug (§5's enum-narrowed `Setting` callbacks,
+confirmed to actually exist rather than being theoretical); a fifth,
+differently-shaped mistyped callback in the same file; and a genuine
+latent runtime bug in the bookmarks render path (a `TFile`-only callback
+signature accepting what's actually `TAbstractFile[]`, meaning a bookmarked
+*folder* would render `file.basename` as `undefined` today with zero
+compiler warning). All 10 fixed in the same pass rather than deferred —
+full detail and the fix for each is in the checklist's §1 findings note.
 
-Complete sections 7 and 8. React should render typed data through meaningful boundaries, with the source tree reduced to a few coherent areas.
+Decision, stated plainly: this codebase is going to break in places while
+being refactored regardless, so finding real bugs via a stricter compiler
+and then *not* fixing them immediately would just mean carrying a
+documented-but-broken state further into the refactor for no reason. Turn
+strict flags on as they're identified as valuable, fix what they find,
+keep moving.
 
-### Milestone 5: Release Candidate
+## `electron` dependency — **removed now, as an explicit stopgap, not deferred to §4**
 
-Complete sections 9, 10, and 11. Automated checks, manual desktop/mobile validation, migration testing, and release documentation should all be complete.
+Originally scoped (per REFACTOR.md and the §0 bookmarks-adjacent reasoning)
+to be removed only after §4 replaces the OS-folder/native-dialog workflow
+with the vault-relative equivalent. Pulled forward instead, because
+`npm audit` flagged 2 high-severity CVEs against the pinned
+`electron@25.8.1`, and there was no good argument for shipping known CVEs
+in the dev toolchain for a feature that's getting fully rebuilt soon
+anyway.
+
+This was a **removal, not a migration**: `fs`, `path`, and `electron`
+imports are gone from `main.ts` and `src/Settings/Settings.ts`, and the
+three UI affordances they backed (OS-folder sync, "Browse", "Add local
+image") were disabled at the time this decision was made, not replaced.
+**Update:** the real vault-adapter replacement for the folder-sync feature
+specifically was built shortly after, in the entry below — this section is
+kept as-written for the historical record of the decision at the time it
+was made.
+
+`npm audit` reported 0 vulnerabilities at the time; still true.
+
+## `eslint --fix` scope — **learned the hard way, documented so it isn't relearned**
+
+Ran unscoped `eslint . --fix` expecting it to touch only the two stylistic
+rules under discussion (`@stylistic/quotes`, `@stylistic/indent`). It also
+applied "suggestion"-level autofixes for every other enabled rule, which
+is default ESLint behavior, not a bug — and two of those were real,
+breaking changes: 9 instances of `@typescript-eslint/no-explicit-any`
+silently rewriting `any` → `unknown` (strictly stricter, broke `tsc`
+immediately), and one instance of `@typescript-eslint/no-unnecessary-type-assertion`
+stripping a load-bearing `as any` cast entirely. Both caught only because
+the full pipeline (`typecheck`, `typecheck:fast`, `build`) was re-run after
+the `--fix`, rather than trusting its exit code; both reverted by hand,
+confirmed clean against a full pipeline re-run afterward.
+
+Decision, for this project going forward: stylistic-only cleanup passes
+should scope `--fix` explicitly — `eslint . --fix --fix-type layout` (or
+`layout,problem`, excluding `suggestion`) — rather than running it bare.
+This will come up again in later sections that touch lint; no need to
+relearn it each time.
+
+## Package manager — **pnpm, adopted for real**
+
+Previously flagged, not resolved: §2 had already marked `package-lock.json`
+as intentionally untracked because "pnpm will be the new package manager,"
+but nothing in the toolchain actually used pnpm. Now it does.
+
+`package-lock.json` deleted. `pnpm@11.24.0` pinned via `packageManager` in
+`package.json` (so `corepack enable` gets contributors the exact same
+version with no separate install step). `.gitignore` updated to exclude
+`package-lock.json`/`yarn.lock` outright, so a stray `npm install` from
+someone on the wrong tool can't silently reintroduce the file this section
+just removed.
+
+One piece of real, project-specific handling was needed, not zero: pnpm
+blocks lifecycle/build scripts from dependencies by default, and two of
+this project's dependencies genuinely need theirs — `esbuild` (resolves
+its platform-specific binary) and `@parcel/watcher` (a transitive
+dependency of `sass-embedded`, compiles a small native addon). Verified
+both actually matter (rather than approving blindly) by checking that
+`esbuild`'s binary was present and runnable before explicitly allowing it.
+
+Also worth recording since it cost real time to track down: **pnpm 11
+removed the `pnpm` field from `package.json` entirely** — all non-auth
+config (including build-script approval, renamed `onlyBuiltDependencies` →
+`allowBuilds`) now lives in a separate `pnpm-workspace.yaml` file. This is
+a recent, breaking change (pnpm 11 shipped after most existing
+`package.json#pnpm` examples floating around were written) and pnpm gives
+no warning when it silently ignores the old location — it just doesn't
+apply the setting. `pnpm-workspace.yaml` is the canonical place for this
+project's pnpm config going forward, not `package.json`.
+
+Also fixed while adopting pnpm for real: the `build` script's internal
+`npm run typecheck` was hardcoded to `npm` specifically, which only ever
+worked because `npm` happened to also be present alongside whatever ran
+it. Changed to `pnpm run typecheck` so `pnpm run build` doesn't depend on
+a second package manager being installed for no reason.
+
+## Browser/runtime target — **settled at ES2020, applied consistently**
+
+Three numbers previously disagreed with each other and with reality:
+`tsconfig.json` declared `target: "ES6"` and `lib: ["ES5","ES6","ES7"]`;
+`esbuild.config.mjs` emitted for `target: "es2018"`; and the *actual*
+checked lib was silently ES2020 the whole time regardless of what
+`tsconfig.json` said, because `@types/node` hardcodes a
+`/// <reference lib="es2020" />` (see §1's earlier finding). None of these
+were a deliberate choice — they were just whatever each file happened to
+have from whenever it was last touched.
+
+Researched Obsidian's actual runtime rather than guessing: desktop
+currently ships Electron 43.x, which is modern by any measure, but
+Obsidian's Electron/"installer" version is a *separate* number from the
+app version and isn't touched by the app's own auto-updater — a desktop
+install can be running a current Obsidian app version on a stale Electron
+runtime if it hasn't been manually reinstalled in a while, so "whatever
+Electron ships today" isn't a safe floor to target. Mobile isn't Electron
+at all — it's a WKWebView (iOS) or the system WebView (Android) via
+Capacitor — and Obsidian's own plugin docs acknowledge real fragmentation
+here directly (regex lookbehind, for one concrete example, needs iOS
+16.4+).
+
+Decision: **ES2020**, applied identically to `tsconfig.json`'s
+`target`/`lib` and `esbuild.config.js`'s `target` (see the rename below).
+Reasoning for landing there rather than higher or lower:
+
+- It's broadly supported across any realistic Electron build and mobile
+  WebView from the last several years — a genuinely safe floor, not an
+  aggressive one.
+- It's honest about what the codebase already assumes: optional chaining
+  and nullish coalescing are already used pervasively throughout
+  `App.tsx`, `main.ts`, and elsewhere, and both are ES2020.
+- `tsconfig.json`'s `lib` was already silently ES2020 in practice (the
+  `@types/node` leak); declaring it for real just makes the number honest
+  instead of removing the one thing keeping it accurate by accident.
+- esbuild's `target` only downlevels *syntax*, never polyfills missing
+  runtime APIs — so the tsconfig and esbuild numbers actually need to
+  agree for "confirmed compatible" to mean anything real. They didn't
+  before; they do now.
+
+The overlapping `lib: ["ES5","ES6","ES7"]` stack collapsed to a single
+`["DOM", "ES2020"]`, matching REFACTOR.md's own guidance not to list
+redundant overlapping ES versions.
+
+## `esbuild.config.mjs`/`version-bump.mjs` → `.js`, and the dev output path collapsed entirely
+
+Two changes landed together since they touched the same file.
+
+**The `.mjs` extension was pure legacy weight.** It exists specifically to
+force Node to parse a file as ESM when the nearest `package.json` doesn't
+declare `"type": "module"`. This project's `package.json` has declared
+exactly that since the pnpm section above — every plain `.js` file has
+been ESM project-wide since then, which means `.mjs` stopped doing
+anything functionally different from `.js` from that point on. Both files
+renamed (`esbuild.config.mjs` → `esbuild.config.js`,
+`version-bump.mjs` → `version-bump.js`), all references updated
+(`package.json` scripts, `eslint.config.js`'s ignore list).
+
+**The dev/prod `outdir` ternary is gone, not parameterized.** The original
+checklist item asked for the hard-coded Windows path to become an
+environment variable. Went further instead: `outdir` is now unconditionally
+`"./dist/"` for both dev and prod. The standard Obsidian plugin dev pattern
+doesn't need the build tool to know about a vault path at all — a
+developer symlinks `<vault>/.obsidian/plugins/tabcandy` to the repo's
+`dist/` once, locally, which is exactly the kind of one-time, per-developer,
+out-of-sandbox step already established for the disposable dev vault
+itself (`~/.obsidian-dev-vaults/tab-candy/`, documented in §0 above). Net
+effect: no env var, no ternary, no path baked into version control at all
+— and the previously-broken path (which pointed at a different plugin's
+folder entirely, `obsidian-canvas-dailynote`) doesn't exist to be wrong
+anymore.
+
+## Two §1 line items relocated to §8, not completed there
+
+`Choose one import strategy` and `Evaluate noUnusedLocals and
+noUnusedParameters` were both still open in §1 at review time. Neither is
+really toolchain-version work — the import-strategy question only matters
+once files are actually moving (§8), and the unused-locals/params flags
+were only ever scoped to §1 by proximity to the other tsconfig edits, not
+because turning them on has anything to do with Node/TypeScript/esbuild
+versions. Both moved to §8's checklist entries verbatim, not duplicated.
+
+---
+
+# §4 Decisions — Vault-Based Backgrounds And Mobile Support (partial, pulled forward)
+
+Out of dependency order, on request: after §1 removed `syncLocalBackgroundsFromDirectory()`
+outright as part of the `electron` stopgap above, the actual vault-relative
+replacement for that one feature (folder-based background sync) was built
+before §2/§3 were started, rather than left as a gap until §4's normal
+turn. This section covers only that slice — the rest of §4 (the manual
+"Add vault image" flow's base64 storage, a real folder-suggest chooser UI,
+vault-event cache invalidation, actual desktop/mobile verification) is
+still open and tracked in the checklist under §4 as usual.
+
+## `getResourcePath()` instead of `readBinary()` + object URL lifecycle
+
+REFACTOR.md's original sketch for loading a synced background was:
+`adapter.readBinary(filePath)` → convert the `ArrayBuffer` to an object
+URL → revoke it on background change or view close. Built it differently:
+`app.vault.adapter.getResourcePath(path)`, which Obsidian provides
+specifically to turn a vault-relative path into a URL already usable in an
+`<img src>` or CSS `background-image`.
+
+Decision, stated plainly: every goal those `readBinary`/object-URL line
+items exist to serve — no image bytes in settings, mobile-safe, no memory
+or lifecycle leak — is fully met by `getResourcePath()`, with less code
+and zero cleanup surface to get wrong (there's no object URL, so there's
+nothing to forget to revoke). The checklist marks the literal
+`readBinary`/object-URL line items as superseded rather than done, since
+that's not the API actually used, but the outcome is the same. Full
+implementation lives in the new `src/services/backgrounds.ts`.
+
+## Scope held at "fix the sync mechanism," not "rebuild the whole feature"
+
+Explicitly did not touch the pre-existing manual "Add vault image" flow,
+which still converts a chosen file to a base64 `data:` URI and stores it
+directly in `settings.localBackgrounds` — the exact "image bytes in
+settings" problem the refactor exists to fix, just not fixed here. Two
+things now genuinely coexist for background images: `backgroundFiles`
+(new, paths only, resolved at render time) and `localBackgrounds` (old,
+bytes, unchanged). `React/Components/App/App.tsx` merges both into one
+list before rendering so the feature works correctly either way, but the
+underlying inconsistency is real and still open — it's the actual fork
+"Decide how legacy `localBackgroundsDirectory` and base64 `localBackgrounds`
+values are handled" (§3) is asking about, now sharpened by a concrete
+question: should "Add vault image" be changed to also store just a path,
+for consistency and to fully close out "no image bytes in settings"? Not
+decided yet.
+
+Also explicitly not built: a real vault-folder suggest/chooser modal (the
+new folder-path field is a plain text input — functional, silently syncs
+zero files on a typo, not the fuzzy-suggest UI REFACTOR.md describes), and
+any vault `create`/`modify`/`delete`/`rename` event listening for cache
+invalidation (sync only runs on plugin load or an explicit "Sync now"
+click). Both are named explicitly in the checklist rather than left to be
+rediscovered as "missing" later.
+
+Also fixed in the same pass, found by inspection rather than being the
+point of the exercise: the manual vault-image picker
+(`ChooseImageSuggestModal`) only allowed `jpg`/`png`, narrower than the
+old OS-folder sync's `jpg`/`jpeg`/`png`/`webp`/`gif` — the two lists had
+just drifted apart with no reason behind the difference. Both now share
+one list (`src/Types/Images.ts`).
+
+---
+
+
+
+## Net effect on the checklist
+
+Every unchecked box in §0 now has a recorded decision above. Concretely,
+going into §1:
+
+- Plugin id: `tabcandy` (already locked).
+- `minAppVersion`: `0.15.0` (unchanged, revisit only if a later section
+  demands something newer).
+- Node: `>=24`, dev + CI.
+- Bookmarks: kept, guarded adapter required in §5/§6.
+- Folder scanning: non-recursive.
+- Activation: explicit command + reusable helper is mandatory; blanket
+  `layout-change` hijack becomes an opt-in, default-on setting layered on
+  top of that same helper, not a separate code path.
+- Dev vault: convention documented above; physical creation is a local,
+  out-of-sandbox action item, tracked but not something this session can
+  tick off as literally done.
+- Baseline: captured in `BASELINE.md`.
+- Working tree: clean; `updates.ts` exclusion rule remains in force.
+
+Going into §2, with §1 fully resolved (every line item is done, moved to
+the section it actually belongs in, or explicitly superseded — none left
+ambiguously open):
+
+- TypeScript: 5.9.3 authoritative, TS7/`tsgo` as a non-gating speed option.
+- Strictness: `strictPropertyInitialization`/`strictFunctionTypes` on for
+  good; the 10 errors they found are fixed, not suppressed.
+- `electron`: fully removed; the folder-sync feature it broke has a real
+  vault-relative replacement now (see the §4-pulled-forward entry above),
+  built out of order rather than left broken until §4's normal turn. The
+  rest of §4 — the manual-add flow's base64 storage, a real folder-chooser
+  UI, vault-event cache invalidation, actual device testing — is still
+  open.
+- Lint: runs for the first time ever (`eslint` wasn't even installed
+  before this pass); real findings remain, deliberately deferred to the
+  sections that already own them (mostly §6/§8's private-API isolation
+  work), tracked in the checklist rather than fixed here. The original
+  342/53 count was itself undercounted (see the lint-bucketing correction
+  above) — treat the checklist's running total, not this number, as
+  current.
+- Package manager: pnpm, adopted for real — see the §1 pnpm entry above.
+- Browser/runtime target: ES2020, one number, agreed across `tsconfig.json`
+  and `esbuild.config.js` — see the target-settlement entry above.
+- Build tooling: `esbuild.config.mjs`/`version-bump.mjs` → `.js` (the
+  extension did nothing once `package.json` declared `"type": "module"`);
+  dev/prod `outdir` collapsed to always be `./dist/`, no vault path in
+  version control at all.
+- Two line items relocated to §8 rather than done in §1: the import-alias
+  strategy and `noUnusedLocals`/`noUnusedParameters`. Neither was really
+  toolchain-version work; both belong with §8's file moves and dead-code
+  sweep.

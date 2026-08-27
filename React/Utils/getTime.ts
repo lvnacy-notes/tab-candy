@@ -1,4 +1,4 @@
-import { TIME_FORMAT } from "src/Types/Enums";
+import { TIME_FORMAT } from 'src/Types/Enums';
 
 /**
  * Returns the current time in a 00:00 format, either 12-hour or 24-hour
@@ -11,13 +11,13 @@ const getTime = (timeFormat: TIME_FORMAT) => {
 			today.getHours() > 12
 				? today.getHours() - 12
 				: today.getHours() === 0
-				? 12
-				: today.getHours();
+					? 12
+					: today.getHours();
 	} else {
-		hours = today.getHours().toString().padStart(2, "0");
+		hours = today.getHours().toString().padStart(2, '0');
 	}
 
-	const minutes = today.getMinutes().toString().padStart(2, "0");
+	const minutes = today.getMinutes().toString().padStart(2, '0');
 
 	return `${hours}:${minutes}`;
 };

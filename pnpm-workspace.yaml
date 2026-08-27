@@ -1,0 +1,14 @@
+# pnpm 11+ no longer reads pnpm-specific settings from package.json#pnpm -
+# everything except registry/auth (which stays in .npmrc) lives here instead.
+# See: https://pnpm.io/settings
+
+# esbuild and @parcel/watcher (a transitive dependency of sass-embedded) both
+# ship a build/postinstall script. pnpm blocks all lifecycle scripts from
+# dependencies by default; without this, every install prints an
+# ERR_PNPM_IGNORED_BUILDS warning. Both verified to actually matter here:
+# esbuild's script resolves its platform-specific binary, @parcel/watcher's
+# compiles a small native addon used internally by sass-embedded's watch
+# mode. Neither does anything beyond that at install time.
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true

@@ -1,6 +1,6 @@
-import { App, TAbstractFile } from "obsidian";
-import { TabCandyPluginSettings } from "../../src/Settings/Settings";
-import { BOOKMARK_SOURCE } from "../../src/Types/Enums";
+import { App, TAbstractFile } from 'obsidian';
+import { TabCandyPluginSettings } from '../../src/Settings/Settings';
+import { BOOKMARK_SOURCE } from '../../src/Types/Enums';
 
 /**
  * Recursively gets all bookmarks
@@ -10,9 +10,9 @@ const flattenBookmarks = (items: any[]) => {
 	let flattedBookmarks: any[] = [];
 
 	items.forEach((item) => {
-		if (item.type === "file") {
+		if (item.type === 'file') {
 			flattedBookmarks.push(item);
-		} else if (item.type === "group") {
+		} else if (item.type === 'group') {
 			flattedBookmarks = flattedBookmarks.concat(
 				flattenBookmarks(item.items)
 			);
@@ -31,10 +31,10 @@ const getBookmarksByGroupName = (title: string, items: any[]) => {
 	let flattedBookmarks: any[] = [];
 
 	items.forEach((item) => {
-		if (item.type === "group") {
+		if (item.type === 'group') {
 			console.log(`Found group with title ${ item.title }`);
 			if (item.title === title) {
-				console.log("found match!", item.items);
+				console.log('found match!', item.items);
 				flattedBookmarks = flattenBookmarks(item.items);
 			} else {
 				const bookmarks = getBookmarksByGroupName(title, item.items);
@@ -82,7 +82,7 @@ const flattenBookmarkGroups = (items: any[], parentPath = null) => {
 	let flattedGroups: any[] = [];
 
 	items.forEach((item) => {
-		if (item.type === "group") {
+		if (item.type === 'group') {
 			const path = parentPath
 				? `${parentPath}/${item.title}`
 				: item.title;
@@ -102,7 +102,7 @@ const flattenBookmarkGroups = (items: any[], parentPath = null) => {
  */
 export const getBookmarkGroups = (app: App) => {
 	// @ts-ignore
-	let bookmarks = app?.internalPlugins.plugins.bookmarks.instance.items;
+	const bookmarks = app?.internalPlugins.plugins.bookmarks.instance.items;
 
 	return flattenBookmarkGroups(bookmarks);
 };

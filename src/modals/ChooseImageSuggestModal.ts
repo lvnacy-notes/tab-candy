@@ -3,6 +3,7 @@ import {
 	FuzzySuggestModal,
 	TFile
 } from 'obsidian';
+import { BACKGROUND_IMAGE_EXTENSIONS } from '../Types/Images';
 
 export interface Image {
 	name: string;
@@ -11,7 +12,6 @@ export interface Image {
 
 class ChooseImageSuggestModal extends FuzzySuggestModal<TFile> {
 	onSubmit: (result: TFile) => void;
-	result: TFile;
 
 	constructor(app: App, onSubmit: (result: TFile) => void) {
 		super(app);
@@ -19,12 +19,19 @@ class ChooseImageSuggestModal extends FuzzySuggestModal<TFile> {
 	}
 
 	/**
-	 * Gets all png/jpg images from the vault
+	 * Gets all supported image types from the vault. Uses the same extension
+	 * list as the background-folder sync (src/Types/Images.ts) so a manually
+	 * picked image and a folder-synced image are never held to different
+	 * rules - the pre-refactor version of this modal only allowed jpg/png,
+	 * narrower than the folder sync's jpg/jpeg/png/webp/gif, for no reason
+	 * other than the two lists having drifted apart.
 	 */
 	getItems(): TFile[] {
 		return this.app.vault
 			.getFiles()
-			.filter((f) => ['jpg', 'jpeg', 'png'].includes(f.extension));
+			.filter((f) =>
+				BACKGROUND_IMAGE_EXTENSIONS.includes(f.extension.toLowerCase())
+			);
 	}
 
 	getItemText(item: TFile): string {
@@ -32,7 +39,6 @@ class ChooseImageSuggestModal extends FuzzySuggestModal<TFile> {
 	}
 
 	onChooseItem(item: TFile, evt: MouseEvent | KeyboardEvent): void {
-		this.result = item;
 		this.onSubmit(item);
 		this.close();
 	}

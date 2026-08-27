@@ -8,6 +8,11 @@
 # npm
 node_modules
 
+# Only pnpm-lock.yaml is committed; guard against an npm/yarn lockfile
+# sneaking back in from someone running the wrong package manager.
+package-lock.json
+yarn.lock
+
 # Don't include the compiled main.js file in the repo.
 # They should be uploaded to GitHub releases instead.
 main.js
@@ -23,3 +28,6 @@ data.json
 
 # Remove local builds
 dist/
+
+# Remove pnpm resources
+.pnpm-store

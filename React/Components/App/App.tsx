@@ -10,6 +10,7 @@ import getTime from '../../Utils/getTime';
 import Observable from '../../../src/Utils/Observable';
 import TabCandyPlugin from '../../../main';
 import getBackground from '../../Utils/getBackground';
+import { getBackgroundResourcePath } from '../../../src/services/backgrounds';
 import getTimeOfDayGreeting from '../../Utils/getTimeOfDayGreeting';
 import { getBookmarks } from '../../Utils/getBookmarks';
 import { TabCandyPluginSettings } from '../../../src/Settings/Settings';
@@ -53,17 +54,36 @@ const App = ({
 	const mainDivRef = useRef<HTMLDivElement>(null);
 
 	const obsidian = useObsidian();
+
+	// Vault-folder-synced backgrounds are stored as vault-relative paths
+	// (never bytes), so they need resolving to an actual displayable URL at
+	// render time - unlike settings.localBackgrounds, which are manually
+	// added images already stored as ready-to-use base64 data URIs. Both
+	// lists are merged here so BackgroundTheme.LOCAL treats "manually added"
+	// and "folder-synced" images identically downstream.
+	const combinedLocalBackgrounds = useMemo(
+		() => [
+			...settings.localBackgrounds,
+			...(obsidian
+				? settings.backgroundFiles.map((filePath) =>
+						getBackgroundResourcePath(obsidian, filePath)
+				  )
+				: []),
+		],
+		[settings.localBackgrounds, settings.backgroundFiles, obsidian]
+	);
+
 	const background = useMemo(
 		() =>
 			getBackground(
 				settings.backgroundTheme,
 				settings.customBackground,
-				settings.localBackgrounds
+				combinedLocalBackgrounds
 			),
 		[
 			settings.backgroundTheme,
 			settings.customBackground,
-			settings.localBackgrounds,
+			combinedLocalBackgrounds,
 		]
 	);
 
@@ -90,12 +110,12 @@ const App = ({
 	 * Note that this shouldn't cause extra renders because calling 'setTime' with a duplicate value should skip the render
 	 */
 	useEffect(() => {
-		const timer = setInterval(() => {
+		const timer = window.setInterval(() => {
 			setTime(getTime(settings.timeFormat));
 		}, 1000);
 
 		return () => {
-			clearInterval(timer);
+			window.clearInterval(timer);
 		};
 	}, [setTime, settings]);
 
@@ -140,10 +160,10 @@ const App = ({
 			}
 			
 			${
-				settings.backgroundTheme ===
+		settings.backgroundTheme ===
 					BackgroundTheme.TRANSPARENT_WITH_SHADOWS &&
 				'tabcandy-root--transparentWithShadows'
-			}
+		}
 			`}
 			// @ts-ignore
 			style={{
@@ -237,8 +257,8 @@ const App = ({
 					{ settings.showBookmarks && (
 						<div className = 'tabcandy-recentlyedited'>
 							{ bookmarks?.map(
-								(file: TFile) =>
-									file && (
+								(file) =>
+									file instanceof TFile && (
 										<a
 											key = { file.path }
 											className = 'tabcandy-recentlyedited-file'
@@ -246,9 +266,7 @@ const App = ({
 											onClick = { () => {
 												const leaf =
 													obsidian?.workspace.getMostRecentLeaf();
-												if (file instanceof TFile) {
-													leaf?.openFile(file);
-												}
+												leaf?.openFile(file);
 											} }
 										>
 											<Icon name = 'bookmark' />

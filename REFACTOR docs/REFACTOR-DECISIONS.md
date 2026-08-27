@@ -1,8 +1,9 @@
-# §0 Decisions and Baseline — Resolution Log
+# Decisions and Baseline — Resolution Log
 
 This settles every item in [REFACTOR-IMPLEMENTATION-CHECKLIST.md](REFACTOR-IMPLEMENTATION-CHECKLIST.md)
-§0. Each entry states the decision, the reasoning, and what (if anything) it
-locks in for later sections. See [BASELINE.md](BASELINE.md) for the full
+§0, plus the decisions and notable findings from working through §1. Each
+entry states the decision, the reasoning, and what (if anything) it locks
+in for later sections. See [BASELINE.md](BASELINE.md) for the full
 current-behavior capture referenced throughout.
 
 ---
@@ -156,6 +157,292 @@ lands.
 
 ---
 
+# §1 Decisions — Toolchain And Build
+
+Recorded the same way as §0 above: full detail and file-by-file findings
+live in the checklist itself under §1; this is the durable record of the
+calls made, for anyone who lands on this doc without reading the checklist
+line by line.
+
+## TypeScript version — **hold at 5.9.3, run TS7 as a non-gating second track**
+
+TypeScript 7 (the native/Go port) is GA and is `latest` on npm, but
+`typescript-eslint` — and by extension `eslint-plugin-obsidianmd`, which
+depends on it — has a hard peer ceiling of `typescript <6.1.0`, and a
+GitHub issue asking for TS7 support was closed "not planned" on GA day,
+blocked on TS7 shipping a stable programmatic API (expected in 7.1,
+described upstream as "several months out" from 7.0's GA).
+
+Decision: `typescript@5.9.3` stays the checked-in source of truth driving
+`npm run typecheck` and eventual type-aware lint rules. `@typescript/native-preview`
+(the `tsgo` binary) is added as a second, explicitly non-gating
+`npm run typecheck:fast` script — not wired into `build` or CI. This is a
+real speed option for local dev today without breaking the lint story that
+already depends on mainline TypeScript. Revisit once `typescript-eslint`
+supports 7.1+; that's the trigger, not a calendar date.
+
+Worth recording since it surprised both of us during implementation:
+`tsc` and `tsgo`, run against the literal same `tsconfig.json`, disagreed
+on two things — (1) `tsgo` doesn't auto-include ambient `@types/*` packages
+the way `tsc` does, which was masking a real problem (`@types/node`'s own
+`.d.ts` hardcodes a `lib="es2020"` reference that was silently overriding
+this project's deliberately-narrower declared `lib`); and (2) `tsgo`
+defaults `strictPropertyInitialization`/`strictFunctionTypes` to on even
+when neither `strict` nor those flags are set, while `tsc` correctly
+leaves them off absent explicit configuration. Confirmed the second one
+by toggling those two flags on in `tsc` directly and getting a
+byte-identical error list to `tsgo`'s — not a `tsgo` bug in the "broken"
+sense, just an undocumented default divergence between the two.
+
+## Strictness — **`strictPropertyInitialization` and `strictFunctionTypes` turned on, permanently**
+
+Both flags were off (implicitly, since `strict` was never set). Turning
+them on surfaced 10 real errors, not noise: two plugin fields and two modal
+fields set outside the constructor with no compiler acknowledgment; a
+real, already-anticipated bug (§5's enum-narrowed `Setting` callbacks,
+confirmed to actually exist rather than being theoretical); a fifth,
+differently-shaped mistyped callback in the same file; and a genuine
+latent runtime bug in the bookmarks render path (a `TFile`-only callback
+signature accepting what's actually `TAbstractFile[]`, meaning a bookmarked
+*folder* would render `file.basename` as `undefined` today with zero
+compiler warning). All 10 fixed in the same pass rather than deferred —
+full detail and the fix for each is in the checklist's §1 findings note.
+
+Decision, stated plainly: this codebase is going to break in places while
+being refactored regardless, so finding real bugs via a stricter compiler
+and then *not* fixing them immediately would just mean carrying a
+documented-but-broken state further into the refactor for no reason. Turn
+strict flags on as they're identified as valuable, fix what they find,
+keep moving.
+
+## `electron` dependency — **removed now, as an explicit stopgap, not deferred to §4**
+
+Originally scoped (per REFACTOR.md and the §0 bookmarks-adjacent reasoning)
+to be removed only after §4 replaces the OS-folder/native-dialog workflow
+with the vault-relative equivalent. Pulled forward instead, because
+`npm audit` flagged 2 high-severity CVEs against the pinned
+`electron@25.8.1`, and there was no good argument for shipping known CVEs
+in the dev toolchain for a feature that's getting fully rebuilt soon
+anyway.
+
+This was a **removal, not a migration**: `fs`, `path`, and `electron`
+imports are gone from `main.ts` and `src/Settings/Settings.ts`, and the
+three UI affordances they backed (OS-folder sync, "Browse", "Add local
+image") were disabled at the time this decision was made, not replaced.
+**Update:** the real vault-adapter replacement for the folder-sync feature
+specifically was built shortly after, in the entry below — this section is
+kept as-written for the historical record of the decision at the time it
+was made.
+
+`npm audit` reported 0 vulnerabilities at the time; still true.
+
+## `eslint --fix` scope — **learned the hard way, documented so it isn't relearned**
+
+Ran unscoped `eslint . --fix` expecting it to touch only the two stylistic
+rules under discussion (`@stylistic/quotes`, `@stylistic/indent`). It also
+applied "suggestion"-level autofixes for every other enabled rule, which
+is default ESLint behavior, not a bug — and two of those were real,
+breaking changes: 9 instances of `@typescript-eslint/no-explicit-any`
+silently rewriting `any` → `unknown` (strictly stricter, broke `tsc`
+immediately), and one instance of `@typescript-eslint/no-unnecessary-type-assertion`
+stripping a load-bearing `as any` cast entirely. Both caught only because
+the full pipeline (`typecheck`, `typecheck:fast`, `build`) was re-run after
+the `--fix`, rather than trusting its exit code; both reverted by hand,
+confirmed clean against a full pipeline re-run afterward.
+
+Decision, for this project going forward: stylistic-only cleanup passes
+should scope `--fix` explicitly — `eslint . --fix --fix-type layout` (or
+`layout,problem`, excluding `suggestion`) — rather than running it bare.
+This will come up again in later sections that touch lint; no need to
+relearn it each time.
+
+## Package manager — **pnpm, adopted for real**
+
+Previously flagged, not resolved: §2 had already marked `package-lock.json`
+as intentionally untracked because "pnpm will be the new package manager,"
+but nothing in the toolchain actually used pnpm. Now it does.
+
+`package-lock.json` deleted. `pnpm@11.24.0` pinned via `packageManager` in
+`package.json` (so `corepack enable` gets contributors the exact same
+version with no separate install step). `.gitignore` updated to exclude
+`package-lock.json`/`yarn.lock` outright, so a stray `npm install` from
+someone on the wrong tool can't silently reintroduce the file this section
+just removed.
+
+One piece of real, project-specific handling was needed, not zero: pnpm
+blocks lifecycle/build scripts from dependencies by default, and two of
+this project's dependencies genuinely need theirs — `esbuild` (resolves
+its platform-specific binary) and `@parcel/watcher` (a transitive
+dependency of `sass-embedded`, compiles a small native addon). Verified
+both actually matter (rather than approving blindly) by checking that
+`esbuild`'s binary was present and runnable before explicitly allowing it.
+
+Also worth recording since it cost real time to track down: **pnpm 11
+removed the `pnpm` field from `package.json` entirely** — all non-auth
+config (including build-script approval, renamed `onlyBuiltDependencies` →
+`allowBuilds`) now lives in a separate `pnpm-workspace.yaml` file. This is
+a recent, breaking change (pnpm 11 shipped after most existing
+`package.json#pnpm` examples floating around were written) and pnpm gives
+no warning when it silently ignores the old location — it just doesn't
+apply the setting. `pnpm-workspace.yaml` is the canonical place for this
+project's pnpm config going forward, not `package.json`.
+
+Also fixed while adopting pnpm for real: the `build` script's internal
+`npm run typecheck` was hardcoded to `npm` specifically, which only ever
+worked because `npm` happened to also be present alongside whatever ran
+it. Changed to `pnpm run typecheck` so `pnpm run build` doesn't depend on
+a second package manager being installed for no reason.
+
+## Browser/runtime target — **settled at ES2020, applied consistently**
+
+Three numbers previously disagreed with each other and with reality:
+`tsconfig.json` declared `target: "ES6"` and `lib: ["ES5","ES6","ES7"]`;
+`esbuild.config.mjs` emitted for `target: "es2018"`; and the *actual*
+checked lib was silently ES2020 the whole time regardless of what
+`tsconfig.json` said, because `@types/node` hardcodes a
+`/// <reference lib="es2020" />` (see §1's earlier finding). None of these
+were a deliberate choice — they were just whatever each file happened to
+have from whenever it was last touched.
+
+Researched Obsidian's actual runtime rather than guessing: desktop
+currently ships Electron 43.x, which is modern by any measure, but
+Obsidian's Electron/"installer" version is a *separate* number from the
+app version and isn't touched by the app's own auto-updater — a desktop
+install can be running a current Obsidian app version on a stale Electron
+runtime if it hasn't been manually reinstalled in a while, so "whatever
+Electron ships today" isn't a safe floor to target. Mobile isn't Electron
+at all — it's a WKWebView (iOS) or the system WebView (Android) via
+Capacitor — and Obsidian's own plugin docs acknowledge real fragmentation
+here directly (regex lookbehind, for one concrete example, needs iOS
+16.4+).
+
+Decision: **ES2020**, applied identically to `tsconfig.json`'s
+`target`/`lib` and `esbuild.config.js`'s `target` (see the rename below).
+Reasoning for landing there rather than higher or lower:
+
+- It's broadly supported across any realistic Electron build and mobile
+  WebView from the last several years — a genuinely safe floor, not an
+  aggressive one.
+- It's honest about what the codebase already assumes: optional chaining
+  and nullish coalescing are already used pervasively throughout
+  `App.tsx`, `main.ts`, and elsewhere, and both are ES2020.
+- `tsconfig.json`'s `lib` was already silently ES2020 in practice (the
+  `@types/node` leak); declaring it for real just makes the number honest
+  instead of removing the one thing keeping it accurate by accident.
+- esbuild's `target` only downlevels *syntax*, never polyfills missing
+  runtime APIs — so the tsconfig and esbuild numbers actually need to
+  agree for "confirmed compatible" to mean anything real. They didn't
+  before; they do now.
+
+The overlapping `lib: ["ES5","ES6","ES7"]` stack collapsed to a single
+`["DOM", "ES2020"]`, matching REFACTOR.md's own guidance not to list
+redundant overlapping ES versions.
+
+## `esbuild.config.mjs`/`version-bump.mjs` → `.js`, and the dev output path collapsed entirely
+
+Two changes landed together since they touched the same file.
+
+**The `.mjs` extension was pure legacy weight.** It exists specifically to
+force Node to parse a file as ESM when the nearest `package.json` doesn't
+declare `"type": "module"`. This project's `package.json` has declared
+exactly that since the pnpm section above — every plain `.js` file has
+been ESM project-wide since then, which means `.mjs` stopped doing
+anything functionally different from `.js` from that point on. Both files
+renamed (`esbuild.config.mjs` → `esbuild.config.js`,
+`version-bump.mjs` → `version-bump.js`), all references updated
+(`package.json` scripts, `eslint.config.js`'s ignore list).
+
+**The dev/prod `outdir` ternary is gone, not parameterized.** The original
+checklist item asked for the hard-coded Windows path to become an
+environment variable. Went further instead: `outdir` is now unconditionally
+`"./dist/"` for both dev and prod. The standard Obsidian plugin dev pattern
+doesn't need the build tool to know about a vault path at all — a
+developer symlinks `<vault>/.obsidian/plugins/tabcandy` to the repo's
+`dist/` once, locally, which is exactly the kind of one-time, per-developer,
+out-of-sandbox step already established for the disposable dev vault
+itself (`~/.obsidian-dev-vaults/tab-candy/`, documented in §0 above). Net
+effect: no env var, no ternary, no path baked into version control at all
+— and the previously-broken path (which pointed at a different plugin's
+folder entirely, `obsidian-canvas-dailynote`) doesn't exist to be wrong
+anymore.
+
+## Two §1 line items relocated to §8, not completed there
+
+`Choose one import strategy` and `Evaluate noUnusedLocals and
+noUnusedParameters` were both still open in §1 at review time. Neither is
+really toolchain-version work — the import-strategy question only matters
+once files are actually moving (§8), and the unused-locals/params flags
+were only ever scoped to §1 by proximity to the other tsconfig edits, not
+because turning them on has anything to do with Node/TypeScript/esbuild
+versions. Both moved to §8's checklist entries verbatim, not duplicated.
+
+---
+
+# §4 Decisions — Vault-Based Backgrounds And Mobile Support (partial, pulled forward)
+
+Out of dependency order, on request: after §1 removed `syncLocalBackgroundsFromDirectory()`
+outright as part of the `electron` stopgap above, the actual vault-relative
+replacement for that one feature (folder-based background sync) was built
+before §2/§3 were started, rather than left as a gap until §4's normal
+turn. This section covers only that slice — the rest of §4 (the manual
+"Add vault image" flow's base64 storage, a real folder-suggest chooser UI,
+vault-event cache invalidation, actual desktop/mobile verification) is
+still open and tracked in the checklist under §4 as usual.
+
+## `getResourcePath()` instead of `readBinary()` + object URL lifecycle
+
+REFACTOR.md's original sketch for loading a synced background was:
+`adapter.readBinary(filePath)` → convert the `ArrayBuffer` to an object
+URL → revoke it on background change or view close. Built it differently:
+`app.vault.adapter.getResourcePath(path)`, which Obsidian provides
+specifically to turn a vault-relative path into a URL already usable in an
+`<img src>` or CSS `background-image`.
+
+Decision, stated plainly: every goal those `readBinary`/object-URL line
+items exist to serve — no image bytes in settings, mobile-safe, no memory
+or lifecycle leak — is fully met by `getResourcePath()`, with less code
+and zero cleanup surface to get wrong (there's no object URL, so there's
+nothing to forget to revoke). The checklist marks the literal
+`readBinary`/object-URL line items as superseded rather than done, since
+that's not the API actually used, but the outcome is the same. Full
+implementation lives in the new `src/services/backgrounds.ts`.
+
+## Scope held at "fix the sync mechanism," not "rebuild the whole feature"
+
+Explicitly did not touch the pre-existing manual "Add vault image" flow,
+which still converts a chosen file to a base64 `data:` URI and stores it
+directly in `settings.localBackgrounds` — the exact "image bytes in
+settings" problem the refactor exists to fix, just not fixed here. Two
+things now genuinely coexist for background images: `backgroundFiles`
+(new, paths only, resolved at render time) and `localBackgrounds` (old,
+bytes, unchanged). `React/Components/App/App.tsx` merges both into one
+list before rendering so the feature works correctly either way, but the
+underlying inconsistency is real and still open — it's the actual fork
+"Decide how legacy `localBackgroundsDirectory` and base64 `localBackgrounds`
+values are handled" (§3) is asking about, now sharpened by a concrete
+question: should "Add vault image" be changed to also store just a path,
+for consistency and to fully close out "no image bytes in settings"? Not
+decided yet.
+
+Also explicitly not built: a real vault-folder suggest/chooser modal (the
+new folder-path field is a plain text input — functional, silently syncs
+zero files on a typo, not the fuzzy-suggest UI REFACTOR.md describes), and
+any vault `create`/`modify`/`delete`/`rename` event listening for cache
+invalidation (sync only runs on plugin load or an explicit "Sync now"
+click). Both are named explicitly in the checklist rather than left to be
+rediscovered as "missing" later.
+
+Also fixed in the same pass, found by inspection rather than being the
+point of the exercise: the manual vault-image picker
+(`ChooseImageSuggestModal`) only allowed `jpg`/`png`, narrower than the
+old OS-folder sync's `jpg`/`jpeg`/`png`/`webp`/`gif` — the two lists had
+just drifted apart with no reason behind the difference. Both now share
+one list (`src/Types/Images.ts`).
+
+---
+
+
+
 ## Net effect on the checklist
 
 Every unchecked box in §0 now has a recorded decision above. Concretely,
@@ -175,3 +462,35 @@ going into §1:
   tick off as literally done.
 - Baseline: captured in `BASELINE.md`.
 - Working tree: clean; `updates.ts` exclusion rule remains in force.
+
+Going into §2, with §1 fully resolved (every line item is done, moved to
+the section it actually belongs in, or explicitly superseded — none left
+ambiguously open):
+
+- TypeScript: 5.9.3 authoritative, TS7/`tsgo` as a non-gating speed option.
+- Strictness: `strictPropertyInitialization`/`strictFunctionTypes` on for
+  good; the 10 errors they found are fixed, not suppressed.
+- `electron`: fully removed; the folder-sync feature it broke has a real
+  vault-relative replacement now (see the §4-pulled-forward entry above),
+  built out of order rather than left broken until §4's normal turn. The
+  rest of §4 — the manual-add flow's base64 storage, a real folder-chooser
+  UI, vault-event cache invalidation, actual device testing — is still
+  open.
+- Lint: runs for the first time ever (`eslint` wasn't even installed
+  before this pass); real findings remain, deliberately deferred to the
+  sections that already own them (mostly §6/§8's private-API isolation
+  work), tracked in the checklist rather than fixed here. The original
+  342/53 count was itself undercounted (see the lint-bucketing correction
+  above) — treat the checklist's running total, not this number, as
+  current.
+- Package manager: pnpm, adopted for real — see the §1 pnpm entry above.
+- Browser/runtime target: ES2020, one number, agreed across `tsconfig.json`
+  and `esbuild.config.js` — see the target-settlement entry above.
+- Build tooling: `esbuild.config.mjs`/`version-bump.mjs` → `.js` (the
+  extension did nothing once `package.json` declared `"type": "module"`);
+  dev/prod `outdir` collapsed to always be `./dist/`, no vault path in
+  version control at all.
+- Two line items relocated to §8 rather than done in §1: the import-alias
+  strategy and `noUnusedLocals`/`noUnusedParameters`. Neither was really
+  toolchain-version work; both belong with §8's file moves and dead-code
+  sweep.

@@ -6,11 +6,11 @@ const getTimeOfDayGreeting = () => {
 	const hours = new Date().getHours();
 
 	if (hours >= 18 || hours < 5) {
-		return "Good evening";
+		return 'Good evening';
 	} else if (hours >= 12) {
-		return "Good afternoon";
+		return 'Good afternoon';
 	} else {
-		return "Good morning";
+		return 'Good morning';
 	}
 };
 

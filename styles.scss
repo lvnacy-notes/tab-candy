@@ -1,5 +1,5 @@
 @use "React/Components/App/App";
-@use "src/CustomQuotesModel/CustomQuotesModel";
+@use "src/Utils/CustomQuotesModel";
 @use "src/Settings/Settings";
 
 .setting-item.search-provider .setting-item-control input {

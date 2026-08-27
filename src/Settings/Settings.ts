@@ -1,38 +1,70 @@
-import fs from "fs";
-import { getBookmarkGroups } from "../../React/Utils/getBookmarks";
-import TabCandyPlugin from "../../main";
-import { App, PluginSettingTab, Setting, arrayBufferToBase64 } from "obsidian";
-import ChooseSearchProvider from "../modals/ChooseSearchProvider";
-import CustomQuotesModel from "../modals/CustomQuotesModel";
+import { getBookmarkGroups } from '../../React/Utils/getBookmarks';
+import TabCandyPlugin from '../../main';
+import {
+	App,
+	PluginSettingTab,
+	Setting,
+	arrayBufferToBase64
+} from 'obsidian';
+import ChooseSearchProvider from '../modals/ChooseSearchProvider';
+import CustomQuotesModel from '../modals/CustomQuotesModel';
 import {
 	BOOKMARK_SOURCE,
 	BackgroundTheme,
 	QUOTE_SOURCE,
 	TIME_FORMAT,
-} from "../Types/Enums";
-import { CustomQuote, SearchProvider } from "../Types/Interfaces";
-import capitalizeFirstLetter from "../Utils/capitalizeFirstLetter";
-import electron from "electron";
-import ConfirmModal from "../modals/ConfirmModal";
-import ChooseImageSuggestModal from "../modals/ChooseImageSuggestModal";
+} from '../Types/Enums';
+import { CustomQuote, SearchProvider } from '../Types/Interfaces';
+import capitalizeFirstLetter from '../Utils/capitalizeFirstLetter';
+import ConfirmModal from '../modals/ConfirmModal';
+import ChooseImageSuggestModal from '../modals/ChooseImageSuggestModal';
+import { getBackgroundResourcePath } from '../services/backgrounds';
+
+/**
+ * Type guard for validating a raw string (e.g. from a DropdownComponent's
+ * onChange, which Obsidian types as (value: string) => any regardless of
+ * what options were added) against a specific settings enum before it's
+ * trusted as that enum's type. Boundary validation instead of an unchecked
+ * cast, per the refactor's settings-hardening plan.
+ */
+function isEnumValue<T extends Record<string, string>>(
+	enumObject: T,
+	value: string
+): value is T[keyof T] {
+	return (Object.values(enumObject)).includes(value);
+}
 
 const DEFAULT_SEARCH_PROVIDER: SearchProvider = {
-	command: "switcher:open",
-	display: "Obsidian Core Quick Switcher",
+	command: 'switcher:open',
+	display: 'Obsidian Core Quick Switcher',
 };
 
 export const SEARCH_PROVIDER = [
-	"switcher",
-	"omnisearch",
-	"darlal-switcher-plus",
-	"obsidian-another-quick-switcher",
+	'switcher',
+	'omnisearch',
+	'darlal-switcher-plus',
+	'obsidian-another-quick-switcher',
 ];
 
 export interface TabCandyPluginSettings {
 	backgroundTheme: BackgroundTheme;
 	customBackground: string;
 	localBackgrounds: string[];
+	// Legacy OS-path field from the pre-refactor Electron/fs-based folder
+	// sync. No longer read or written by any runtime code path - the sync
+	// feature it powered was removed in §1 (electron/fs removal) and rebuilt
+	// vault-relative below. Kept only so §3's settings migration has a field
+	// to detect and explain to upgrading users; do not resurrect direct
+	// reads/writes of this field outside that migration.
 	localBackgroundsDirectory: string;
+	// Vault-relative folder path (e.g. "Assets/Tab Candy") synced via
+	// src/services/backgrounds.ts using the public vault adapter - the
+	// mobile-safe replacement for localBackgroundsDirectory above.
+	backgroundsFolder: string;
+	// Vault-relative file paths discovered by the last folder sync. Paths
+	// only, never image bytes - resolved to a displayable URL at render
+	// time via getBackgroundResourcePath(), not cached as data here.
+	backgroundFiles: string[];
 	showTopLeftSearchButton: boolean;
 	topLeftSearchProvider: SearchProvider;
 	showTime: boolean;
@@ -52,21 +84,23 @@ export interface TabCandyPluginSettings {
 
 export const DEFAULT_SETTINGS: TabCandyPluginSettings = {
 	backgroundTheme: BackgroundTheme.SEASONS_AND_HOLIDAYS,
-	customBackground: "",
+	customBackground: '',
 	localBackgrounds: [],
-	localBackgroundsDirectory: "",
+	localBackgroundsDirectory: '',
+	backgroundsFolder: '',
+	backgroundFiles: [],
 	showTopLeftSearchButton: true,
 	topLeftSearchProvider: DEFAULT_SEARCH_PROVIDER,
 	showTime: true,
 	timeFormat: TIME_FORMAT.TWELVE_HOUR,
 	showGreeting: true,
-	greetingText: "Hello, Beautiful.",
+	greetingText: 'Hello, Beautiful.',
 	showInlineSearch: true,
 	inlineSearchProvider: DEFAULT_SEARCH_PROVIDER,
 	showRecentFiles: true,
 	showBookmarks: false,
 	bookmarkSource: BOOKMARK_SOURCE.ALL,
-	bookmarkGroup: "",
+	bookmarkGroup: '',
 	showQuote: true,
 	quoteSource: QUOTE_SOURCE.QUOTEABLE,
 	customQuotes: [],
@@ -91,7 +125,7 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 		new Setting(containerEl).setHeading().setName(`Background settings`);
 
 		new Setting(containerEl)
-			.setName("Background theme")
+			.setName('Background theme')
 			.setDesc(
 				`What theme would you like to utilize for the random backgrounds? "Seasons and Holidays" will use a different tag depending on the time of the year. Custom will allow you to input your own url. Local will use the local images imported below.`
 			)
@@ -102,7 +136,8 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 
 				component.setValue(this.plugin.settings.backgroundTheme);
 
-				component.onChange((value: BackgroundTheme) => {
+				component.onChange((value) => {
+					if (!isEnumValue(BackgroundTheme, value)) {return;}
 					this.plugin.settings.backgroundTheme = value;
 					this.plugin.settingsObservable.setValue(
 						this.plugin.settings
@@ -114,7 +149,7 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 
 		if (this.plugin.settings.backgroundTheme === BackgroundTheme.CUSTOM) {
 			new Setting(containerEl)
-				.setName("Custom background url")
+				.setName('Custom background url')
 				.setDesc(`What url should be used for the background image?`)
 				.addText((component) => {
 					component.setValue(this.plugin.settings.customBackground);
@@ -129,104 +164,46 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 				});
 		}
 
-		// @ts-ignore
-		if (!this.app.isMobile) {
-			const localBackgroundsDirectorySetting = new Setting(containerEl)
-				.setName("Local background images folder")
+		const backgroundsFolderSetting = new Setting(containerEl)
+			.setName('Local background images folder')
+			.setDesc(
+				`A folder inside your vault to sync background images from (not including subfolders). Supports jpg/jpeg/png/webp/gif. Works on desktop and mobile - unlike the old version of this feature, it points at a folder in your vault rather than one on your computer.`
+			);
+
+		backgroundsFolderSetting.addText((component) => {
+			component.setPlaceholder('e.g. Assets/Tab Candy');
+			component.setValue(this.plugin.settings.backgroundsFolder);
+			component.onChange((value) => {
+				this.plugin.settings.backgroundsFolder = value;
+				this.plugin.saveSettings();
+			});
+		});
+
+		backgroundsFolderSetting.addButton((component) => {
+			component.setButtonText('Sync now');
+			component.setTooltip(
+				'Re-scan the folder above and refresh the local backgrounds list'
+			);
+			component.onClick(async () => {
+				await this.plugin.syncBackgroundsFolder();
+				this.display();
+			});
+		});
+
+		if (this.plugin.settings.localBackgroundsDirectory) {
+			new Setting(containerEl)
+				.setName('Previous local backgrounds folder (no longer used)')
 				.setDesc(
-					`Instead of adding images one by one, you can point Tab Candy at a folder on your computer. Every image in this folder (jpg/jpeg/png/webp/gif, not including subfolders) will automatically be loaded as a local background whenever Obsidian is reloaded or restarted, so you can just drop new images into the folder to update your rotation.`
+					`Tab Candy previously synced local backgrounds from "${this.plugin.settings.localBackgroundsDirectory}" on your computer. That relied on desktop-only APIs that have been removed. Set a folder inside your vault above instead - your old computer folder isn't read anymore and can't be migrated automatically.`
 				);
-
-			localBackgroundsDirectorySetting.addText((component) => {
-				component.setPlaceholder(
-					"e.g. /Users/me/Pictures/tab-candy-backgrounds"
-				);
-				component.setValue(
-					this.plugin.settings.localBackgroundsDirectory
-				);
-				component.onChange((value) => {
-					this.plugin.settings.localBackgroundsDirectory = value;
-					this.plugin.saveSettings();
-				});
-			});
-
-			localBackgroundsDirectorySetting.addButton((component) => {
-				component.setButtonText("Browse");
-				component.onClick(() => {
-					// @ts-ignore
-					electron.remote.dialog
-						.showOpenDialog({
-							properties: ["openDirectory"],
-							title: "Choose folder to watch for background images",
-						})
-						.then(async (result: any) => {
-							if (!result.canceled && result.filePaths[0]) {
-								this.plugin.settings.localBackgroundsDirectory =
-									result.filePaths[0];
-								await this.plugin.saveSettings();
-								await this.plugin.syncLocalBackgroundsFromDirectory();
-								this.display();
-							}
-						});
-				});
-			});
-
-			localBackgroundsDirectorySetting.addButton((component) => {
-				component.setButtonText("Sync now");
-				component.setTooltip(
-					"Re-scan the folder above and refresh the local backgrounds list"
-				);
-				component.onClick(async () => {
-					await this.plugin.syncLocalBackgroundsFromDirectory();
-					this.display();
-				});
-			});
 		}
 
 		const localBackgroundImagesSetting = new Setting(containerEl).setName(
-			"Local background images"
-		).setDesc(
-			this.plugin.settings.localBackgroundsDirectory
-				? `These are currently synced from the folder above. Manually added images below will be replaced the next time the folder is synced.`
-				: ``
-		);
-
-		// @ts-ignore
-		if (!this.app.isMobile) {
-			localBackgroundImagesSetting.addButton((component) => {
-				component.setButtonText("Add local image");
-				component.onClick(() => {
-					// @ts-ignore
-					electron.remote.dialog
-						.showOpenDialog({
-							properties: ["openFile", "multiSelections"],
-							title: "Add background images",
-							filters: [
-								{ name: "Images", extensions: ["jpg", "png"] },
-							],
-						})
-						.then((result: any) => {
-							if (!result.canceled) {
-								result.filePaths.forEach((filePath: string) => {
-									const fileData = fs.readFileSync(filePath);
-									const base64Data =
-										fileData.toString("base64");
-
-									this.plugin.settings.localBackgrounds.push(
-										`data:image/png;base64,${base64Data}`
-									);
-								});
-
-								this.plugin.saveSettings();
-								this.display();
-							}
-						});
-				});
-			});
-		}
+			'Local background images'
+		).setDesc(``);
 
 		localBackgroundImagesSetting.addButton((component) => {
-			component.setButtonText("Add vault image");
+			component.setButtonText('Add vault image');
 			component.onClick(() => {
 				new ChooseImageSuggestModal(this.app, async (result) => {
 					const fileData = await this.app.vault.readBinary(result);
@@ -241,25 +218,25 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 			});
 		});
 
-		const localBackgroundsDiv = containerEl.createEl("div", {
-			cls: "tabcandysettings-localbackgrounds",
+		const localBackgroundsDiv = containerEl.createDiv({
+			cls: 'tabcandysettings-localbackgrounds',
 		});
 
 		this.plugin.settings.localBackgrounds.forEach(
 			(localBackground, index) => {
-				const backgroundDiv = localBackgroundsDiv.createEl("div", {
-					cls: "tabcandysettings-localbackgrounds-background",
+				const backgroundDiv = localBackgroundsDiv.createDiv({
+					cls: 'tabcandysettings-localbackgrounds-background',
 				});
-				backgroundDiv.createEl("img", {
+				backgroundDiv.createEl('img', {
 					attr: {
 						src: localBackground,
 					},
 				});
-				backgroundDiv.createEl("button", {
-					text: "x",
-					cls: "tabcandysettings-localbackgrounds-background-delete",
+				backgroundDiv.createEl('button', {
+					text: 'x',
+					cls: 'tabcandysettings-localbackgrounds-background-delete',
 				});
-				backgroundDiv.addEventListener("click", () => {
+				backgroundDiv.addEventListener('click', () => {
 					new ConfirmModal(
 						this.app,
 						() => {
@@ -270,13 +247,31 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 							this.plugin.saveSettings();
 							this.display();
 						},
-						"Remove background",
+						'Remove background',
 						`Are you sure?`,
-						"Remove"
+						'Remove'
 					).open();
 				});
 			}
 		);
+
+		if (this.plugin.settings.backgroundFiles.length) {
+			const syncedBackgroundsDiv = containerEl.createDiv({
+				cls: 'tabcandysettings-localbackgrounds',
+			});
+
+			this.plugin.settings.backgroundFiles.forEach((filePath) => {
+				const backgroundDiv = syncedBackgroundsDiv.createDiv({
+					cls: 'tabcandysettings-localbackgrounds-background',
+				});
+				backgroundDiv.createEl('img', {
+					attr: {
+						src: getBackgroundResourcePath(this.app, filePath),
+						title: filePath,
+					},
+				});
+			});
+		}
 
 		/****************************************
 		 * Search settings
@@ -284,7 +279,7 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 		new Setting(containerEl).setHeading().setName(`Search settings`);
 
 		new Setting(containerEl)
-			.setName("Show top left search button")
+			.setName('Show top left search button')
 			.setDesc(
 				`Should the search button at the top left of the new tab screen be displayed?`
 			)
@@ -303,11 +298,11 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Top left search provider")
+			.setName('Top left search provider')
 			.setDesc(
 				`Which plugin should be utilized for search when clicking the top left button?`
 			)
-			.setClass("search-provider")
+			.setClass('search-provider')
 			.addText((component) => {
 				component.setValue(
 					this.plugin.settings.topLeftSearchProvider.display
@@ -315,8 +310,8 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 				component.setDisabled(true);
 			})
 			.addButton((component) => {
-				component.setButtonText("Change");
-				component.setTooltip("Choose search provider");
+				component.setButtonText('Change');
+				component.setTooltip('Choose search provider');
 				component.onClick(() => {
 					new ChooseSearchProvider(
 						this.app,
@@ -334,7 +329,7 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Show inline search")
+			.setName('Show inline search')
 			.setDesc(
 				`Should the inline search in the middle of the new tab screen be displayed?`
 			)
@@ -351,11 +346,11 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Inline search provider")
+			.setName('Inline search provider')
 			.setDesc(
 				`Which plugin should be utilized for search when clicking the middle of the screen button?`
 			)
-			.setClass("search-provider")
+			.setClass('search-provider')
 
 			.addText((component) => {
 				component
@@ -363,8 +358,8 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 					.setDisabled(true);
 			})
 			.addButton((component) => {
-				component.setButtonText("Change");
-				component.setTooltip("Choose search provider");
+				component.setButtonText('Change');
+				component.setTooltip('Choose search provider');
 				component.onClick(() => {
 					new ChooseSearchProvider(
 						this.app,
@@ -387,7 +382,7 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 		new Setting(containerEl).setHeading().setName(`Time settings`);
 
 		new Setting(containerEl)
-			.setName("Show time")
+			.setName('Show time')
 			.setDesc(
 				`Should the time in the middle of the new tab screen be displayed?`
 			)
@@ -404,7 +399,7 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Time format")
+			.setName('Time format')
 			.setDesc(`Should the time be in 12-hour format or 24-hour format?`)
 			.addDropdown((component) => {
 				component.addOption(
@@ -418,7 +413,8 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 
 				component.setValue(this.plugin.settings.timeFormat);
 
-				component.onChange((value: TIME_FORMAT) => {
+				component.onChange((value) => {
+					if (!isEnumValue(TIME_FORMAT, value)) {return;}
 					this.plugin.settings.timeFormat = value;
 					this.plugin.settingsObservable.setValue(
 						this.plugin.settings
@@ -434,7 +430,7 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 		new Setting(containerEl).setHeading().setName(`Greeting settings`);
 
 		new Setting(containerEl)
-			.setName("Show greeting")
+			.setName('Show greeting')
 			.setDesc(
 				`Should the greeting in the middle of the new tab screen be displayed?`
 			)
@@ -451,7 +447,7 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Greeting text")
+			.setName('Greeting text')
 			.setDesc(
 				`What text should be displayed as a greeting? You can use the {{greeting}} to add a greeting based on the time of the day. (E.g. Good morning)`
 			)
@@ -472,7 +468,7 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 		new Setting(containerEl).setHeading().setName(`Recent file settings`);
 
 		new Setting(containerEl)
-			.setName("Show recent files")
+			.setName('Show recent files')
 			.setDesc(
 				`Should recent files in the middle of the new tab screen be displayed?`
 			)
@@ -494,7 +490,7 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 		new Setting(containerEl).setHeading().setName(`Bookmark settings`);
 
 		new Setting(containerEl)
-			.setName("Show bookmarks")
+			.setName('Show bookmarks')
 			.setDesc(
 				`Should bookmarks in the middle of the new tab screen be displayed?`
 			)
@@ -511,19 +507,20 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Bookmarks source")
+			.setName('Bookmarks source')
 			.setDesc(
 				`Should all bookmarks be displayed or bookmarks from a specific group?`
 			)
 			.addDropdown((component) => {
-				component.addOption(BOOKMARK_SOURCE.ALL, "All bookmarks");
+				component.addOption(BOOKMARK_SOURCE.ALL, 'All bookmarks');
 				component.addOption(
 					BOOKMARK_SOURCE.GROUP,
-					"Bookmarks from group"
+					'Bookmarks from group'
 				);
 
 				component.setValue(this.plugin.settings.bookmarkSource);
-				component.onChange((value: BOOKMARK_SOURCE) => {
+				component.onChange((value) => {
+					if (!isEnumValue(BOOKMARK_SOURCE, value)) {return;}
 					this.plugin.settings.bookmarkSource = value;
 					this.plugin.settingsObservable.setValue(
 						this.plugin.settings
@@ -535,7 +532,7 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 
 		if (this.plugin.settings.bookmarkSource === BOOKMARK_SOURCE.GROUP) {
 			new Setting(containerEl)
-				.setName("Bookmarks group")
+				.setName('Bookmarks group')
 				.setDesc(`Which group should bookmarks be pulled from?`)
 				.addDropdown((component) => {
 					getBookmarkGroups(this.app).forEach((group) => {
@@ -543,7 +540,7 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 					});
 
 					component.setValue(this.plugin.settings.bookmarkGroup);
-					component.onChange((value: BOOKMARK_SOURCE) => {
+					component.onChange((value) => {
 						this.plugin.settings.bookmarkGroup = value;
 						this.plugin.settingsObservable.setValue(
 							this.plugin.settings
@@ -560,7 +557,7 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 		new Setting(containerEl).setHeading().setName(`Quote settings`);
 
 		new Setting(containerEl)
-			.setName("Show quote")
+			.setName('Show quote')
 			.setDesc(
 				`Should the quote at the bottom of the new tab screen be displayed?`
 			)
@@ -577,7 +574,7 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Quote source")
+			.setName('Quote source')
 			.setDesc(
 				`Where should quotes be pulled from? You can use either built in quotes, your own quotes, or a combination of both.`
 			)
@@ -587,7 +584,8 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 				});
 
 				component.setValue(this.plugin.settings.quoteSource);
-				component.onChange((value: QUOTE_SOURCE) => {
+				component.onChange((value) => {
+					if (!isEnumValue(QUOTE_SOURCE, value)) {return;}
 					this.plugin.settings.quoteSource = value;
 					this.plugin.settingsObservable.setValue(
 						this.plugin.settings
@@ -598,10 +596,10 @@ export class TabCandyPluginSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Custom quotes")
+			.setName('Custom quotes')
 			.setDesc(`${this.plugin.settings.customQuotes.length} quotes`)
 			.addButton((component) => {
-				component.setButtonText("Edit");
+				component.setButtonText('Edit');
 
 				component.onClick(() => {
 					new CustomQuotesModel(

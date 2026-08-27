@@ -1,6 +1,6 @@
-import { BackgroundTheme } from "src/Types/Enums";
-import getEasterDate from "./getEasterDate";
-import { isWithinDaysBefore } from "./isWithinXDays";
+import { BackgroundTheme } from 'src/Types/Enums';
+import getEasterDate from './getEasterDate';
+import { isWithinDaysBefore } from './isWithinXDays';
 
 enum MONTH {
 	JANUARY = 1,
@@ -18,29 +18,29 @@ enum MONTH {
 }
 
 enum SEASONAL_THEME {
-	WINTER = "winter",
-	NEW_YEARS = "fireworks",
-	GROUNDHOG_DAY = "groundhog",
-	VALENTINES_DAY = "valentine",
-	WOMENS_DAY = "womensday",
-	ST_PATRICS_DAY = "pub",
-	PI_DAY = "pie",
-	EASTER = "easter",
-	APRIL_FOOLS = "laughing",
-	SPRING = "spring",
-	EARTH_DAY = "earth",
-	STARWARS = "yoda",
-	CINCO_DE_MAYO = "mexico",
-	SUMMER = "summer",
-	FLAG_DAY = "america,flag",
-	JUNETEENTH = "juneteenth",
-	INDIGENOUS_PEOPLES_DAY = "firstnations",
-	CANADA_DAY = "fireworks",
-	JULY_FIRST = "fireworks",
-	FALL = "fall",
-	HALLOWEEN = "helloween",
-	REMEMBERANCE_DAY = "veteran",
-	CHRISTMAS = "christmas",
+	WINTER = 'winter',
+	NEW_YEARS = 'fireworks',
+	GROUNDHOG_DAY = 'groundhog',
+	VALENTINES_DAY = 'valentine',
+	WOMENS_DAY = 'womensday',
+	ST_PATRICS_DAY = 'pub',
+	PI_DAY = 'pie',
+	EASTER = 'easter',
+	APRIL_FOOLS = 'laughing',
+	SPRING = 'spring',
+	EARTH_DAY = 'earth',
+	STARWARS = 'yoda',
+	CINCO_DE_MAYO = 'mexico',
+	SUMMER = 'summer',
+	FLAG_DAY = 'america,flag',
+	JUNETEENTH = 'juneteenth',
+	INDIGENOUS_PEOPLES_DAY = 'firstnations',
+	CANADA_DAY = 'fireworks',
+	JULY_FIRST = 'fireworks',
+	FALL = 'fall',
+	HALLOWEEN = 'helloween',
+	REMEMBERANCE_DAY = 'veteran',
+	CHRISTMAS = 'christmas',
 }
 
 /**
@@ -157,7 +157,7 @@ const getBackground = (
 			const seasonalTag = getSeasonalTag(new Date());
 			return `https://source.unsplash.com/random?${seasonalTag}&cachetag=${new Date()
 				.toDateString()
-				.replace(/ /g, "")}`;
+				.replace(/ /g, '')}`;
 		case BackgroundTheme.CUSTOM:
 			return customBackground;
 		case BackgroundTheme.LOCAL:
@@ -170,7 +170,7 @@ const getBackground = (
 		default:
 			return `https://source.unsplash.com/random?${backgroundTheme}&cachetag=${new Date()
 				.toDateString()
-				.replace(/ /g, "")}`;
+				.replace(/ /g, '')}`;
 	}
 };
 
