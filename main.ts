@@ -7,12 +7,12 @@ import {
 	TabCandyView,
 	TAB_CANDY_VIEW_TYPE
 } from './Views/ReactView';
-import Observable from 'src/Utils/Observable';
+import SettingsStore from 'src/Settings/SettingsStore';
 import {
 	TabCandySettingTab,
 	TabCandySettings,
-	DEFAULT_SETTINGS,
 } from 'src/Settings/Settings';
+import { normalizeSettings } from 'src/Settings/normalizeSettings';
 import { listBackgroundFilesInFolder } from 'src/services/backgrounds';
 
 /**
@@ -31,11 +31,26 @@ export default class TabCandyPlugin extends Plugin {
 	// other plugin lifecycle method (registerView, addSettingTab, etc.) runs -
 	// safe to assert definite assignment rather than union with `undefined`
 	// and push null-checks into every consumer.
+	settingsStore!: SettingsStore;
+
+	// Obsidian's own Plugin base class declares `settings?: unknown` as a
+	// plain field (see obsidian.d.ts), so it can't be overridden with a
+	// getter here (TS2611: property/accessor kind mismatch). Instead this
+	// stays a plain field, kept in sync by subscribing to settingsStore in
+	// onload() below - purely a read convenience so the many pre-existing
+	// `this.plugin.settings.X` reads throughout src/Settings/Settings.ts
+	// and elsewhere didn't all need rewriting to `this.plugin.settingsStore.
+	// get().X`. Writes must go through settingsStore.update(), never by
+	// assigning to this field directly.
 	settings!: TabCandySettings;
-	settingsObservable!: Observable;
 
 	async onload() {
 		await this.loadSettings();
+
+		this.settings = this.settingsStore.get();
+		this.settingsStore.subscribe((settings) => {
+			this.settings = settings;
+		});
 
 		this.versionCheck();
 
@@ -45,12 +60,10 @@ export default class TabCandyPlugin extends Plugin {
 		// dependency and the desktop-only restriction.
 		await this.syncBackgroundsFolder();
 
-		this.settingsObservable = new Observable(this.settings);
-
 		this.registerView(
 			TAB_CANDY_VIEW_TYPE,
 			(leaf) =>
-				new TabCandyView(this.app, this.settingsObservable, leaf, this)
+				new TabCandyView(this.app, this.settingsStore, leaf, this)
 		);
 
 		this.addSettingTab(new TabCandySettingTab(this.app, this));
@@ -80,18 +93,20 @@ export default class TabCandyPlugin extends Plugin {
 	onunload() {}
 
 	/**
-	 * Load data from disk, stored in data.json in plugin folder
+	 * Load data from disk (data.json in the plugin folder), normalize it
+	 * against defaults and validation rules (normalizeSettings.ts), and
+	 * construct the typed settings store around the result. Trusting raw
+	 * loadData() output directly (the old `Object.assign({}, DEFAULT_
+	 * SETTINGS, data)`) had no enum checking or schema validation at all;
+	 * normalizeSettings() is what actually enforces that now.
 	 */
 	async loadSettings() {
-		const data = (await this.loadData()) || {};
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
-	}
-
-	/**
-	 * Save data to disk, stored in data.json in plugin folder
-	 */
-	async saveSettings() {
-		await this.saveData(this.settings);
+		const data = (await this.loadData()) ?? {};
+		const normalized = normalizeSettings(data);
+		this.settingsStore = new SettingsStore(
+			normalized,
+			(settings) => this.saveData(settings)
+		);
 	}
 
 	/**
@@ -103,12 +118,11 @@ export default class TabCandyPlugin extends Plugin {
 	 * empty list rather than throwing).
 	 */
 	async syncBackgroundsFolder() {
-		this.settings.backgroundFiles = await listBackgroundFilesInFolder(
+		const backgroundFiles = await listBackgroundFilesInFolder(
 			this.app,
 			this.settings.backgroundsFolder
 		);
-		await this.saveSettings();
-		this.settingsObservable?.setValue(this.settings);
+		await this.settingsStore.update({ backgroundFiles });
 	}
 
 	/**

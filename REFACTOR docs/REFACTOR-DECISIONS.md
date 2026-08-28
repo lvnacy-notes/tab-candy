@@ -494,3 +494,181 @@ ambiguously open):
   strategy and `noUnusedLocals`/`noUnusedParameters`. Neither was really
   toolchain-version work; both belong with §8's file moves and dead-code
   sweep.
+
+---
+
+# §2 Decisions — Branding And Metadata
+
+## Naming convention — **applied, closing out §2's last open item**
+
+The three names REFACTOR.md's "mixed naming" callout actually named were
+resolved to match its own recommended policy: `TabCandyPluginSettings` →
+`TabCandySettings` (interface), `ReactView` → `TabCandyView` (class) with
+its exported constant `TAB_CANDY_REACT_VIEW` → `TAB_CANDY_VIEW_TYPE`, and
+(applied afterward, on request) `TabCandyPluginSettingTab` →
+`TabCandySettingTab` for the same redundant-"Plugin" reason as the
+settings interface. Two inconsistent CSS class prefixes were fixed at the
+same time: `tabcandysettings-*` (missing hyphen) → `tabcandy-settings-*`,
+and the unprefixed `customQuotesTable` → `tabcandy-customquotes-table`.
+
+One explicit non-change, stated plainly so it isn't "rediscovered" as a
+gap later: the registered Obsidian view-type **string**
+(`'tabcandy-react-view'`) was left untouched even though the class/constant
+names around it changed. That string is the runtime identifier Obsidian
+uses for already-open leaves; changing it would orphan any open Tab Candy
+tab on upgrade for zero benefit, the same class of one-time-migration cost
+already accepted deliberately for the plugin id in §0 — except here there
+was no actual reason to pay it. `Views/ReactView.tsx`'s filename was also
+left as-is; renaming files to match is §8's job, not a naming-convention
+concern.
+
+Verified via `pnpm typecheck`/`build`/`lint`; lint's problem count and
+content were byte-identical before and after both rename passes.
+
+---
+
+# §3 Decisions — Settings Schema And Persistence
+
+## Settings getter conflict — **kept as a plain field, synced via subscription**
+
+The first attempt at a read-compatibility shim for the ~20 pre-existing
+`this.plugin.settings.X` reads scattered through `Settings.ts` was a
+`get settings()` accessor delegating to the new store. `tsc` rejected it
+outright: Obsidian's own `Plugin` base class declares `settings?: unknown`
+as a plain property, and TypeScript won't let a subclass override a plain
+property with an accessor (`TS2611`) — the two are different *kinds* of
+class member as far as the compiler is concerned, independent of type
+compatibility.
+
+Decision: `settings` stays a plain field, declared with the same
+definite-assignment (`!`) pattern already used for `settingsStore`, and is
+kept in sync by subscribing to the store once in `onload()`
+(`this.settingsStore.subscribe((s) => { this.settings = s; })`). Every
+existing read site was left untouched; only the ~17 write sites across
+`Settings.ts` were rewritten to go through `settingsStore.update()`
+instead. Genuinely just a compiler-shape workaround, not a design
+preference — if Obsidian's `Plugin.settings` field is ever removed or
+changed, this whole indirection can go with it in favor of a real getter.
+
+## Unsubscribe bug — **confirmed real, not just theoretical**
+
+REFACTOR.md flagged `Observable`'s "broken unsubscribe predicate" as a
+known issue. Confirmed while porting `App.tsx` off it: the returned
+unsubscribe function filtered subscribers with
+`this.subscribers.filter((value) => value === callback)` — keeping only
+the callback being "removed," the exact inverse of what an unsubscribe
+should do. In practice this meant a component's cleanup effect calling
+its own unsubscribe wouldn't actually stop it from receiving updates,
+unless some *other* subscriber happened to also unsubscribe at some point
+(coincidentally filtering the first one back out). `SettingsStore.subscribe()`
+uses a `Set` and `.delete(subscriber)`, which has no equivalent failure
+mode to get backwards.
+
+## Repeated update blocks — **collapsed into one `updateSettings()` helper**
+
+Every one of the ~17 settings-tab write sites previously repeated the same
+three-to-four-line block: mutate `this.plugin.settings.X` directly, call
+`this.plugin.settingsObservable.setValue(this.plugin.settings)`, call
+`this.plugin.saveSettings()`, then (usually) call `this.display()`.
+REFACTOR.md's own "Remove or trim" section names this pattern directly
+("a typed update helper that updates the store and refreshes only when a
+conditional setting section actually changes"). Replaced with a single
+`private async updateSettings(patch, { redraw? })` method on
+`TabCandySettingTab` that calls `settingsStore.update(patch)` and only
+redraws when explicitly asked to — which turned out to be every case
+*except* the three free-text fields below, since none of those ever
+triggered a conditional UI section.
+
+Array-valued settings (`localBackgrounds` add/remove) were switched from
+in-place `push`/`splice` mutation to passing a whole new array in the
+patch (`[...current, newItem]` / `current.filter(...)`), per REFACTOR.md's
+"Clone or replace arrays during updates so React sees stable, intentional
+state transitions" — mutating the array in place happened to still "work"
+under the old Observable (same array reference, same object identity) but
+defeats the point of a store subscribers can trust for reference-equality
+checks.
+
+## Text-setting debounce — **500ms, bound once outside `display()`**
+
+The three free-text fields (`customBackground`, `greetingText`,
+`backgroundsFolder`) previously called `saveSettings()` (a `data.json`
+disk write) on every keystroke, with no debounce at all. None of them
+called `this.display()` on keystroke already, so the "avoid rebuilding
+the entire settings screen" half of this checklist item was already true
+before this session — only the "batch or debounce...saves" half needed
+work.
+
+Implementation detail worth recording since it's an easy way to get this
+subtly wrong: the debounced updater is created once in the
+`TabCandySettingTab` constructor and stored as an instance field, not
+created fresh inside `display()`. `display()` reruns (via
+`containerEl.empty()` + full rebuild) on nearly every other setting
+change; a debounced function created inside it would lose its pending
+timer on every redraw, so a background dropdown change mid-keystroke in
+the URL field would silently drop whatever was typed so far. Binding it
+once in the constructor means the timer survives redraws untouched.
+
+## Legacy folder notice — **real one-time marker, not a bigger migration system**
+
+REFACTOR.md's Migration section asks for "a one-time migration marker so
+the notice isn't repeated." Scope was held to exactly that: a new
+`legacyBackgroundsNoticeDismissed: boolean` field and a "Got it" button on
+the existing notice, nothing more. This does not touch or resolve the
+still-open `localBackgrounds` base64-vs-path fork below — that's a
+separate, bigger product decision this session did not make.
+
+## `localBackgrounds` base64 storage — **decided: eliminate it, not migrate it** (superseded)
+
+The entry immediately above logged this as "still open, deliberately not
+decided here." It's since been settled directly, and separated from a
+question it was getting conflated with:
+
+- **There is no Beautitab-origin legacy data to handle, full stop.**
+  `tabcandy` is a different plugin id than `beautitab` (§0), so upgrading
+  is not a thing that happens automatically — anyone on the old id who
+  doesn't switch just keeps using Beautitab, untouched. Tab Candy is a new
+  plugin superseding it, not an in-place upgrade path for it. This was
+  implicit in §0's plugin-id decision the whole time; it just hadn't been
+  stated as the answer to "how is legacy data handled" until now.
+- **`localBackgroundsDirectory`** (the pre-refactor *Tab Candy* OS-path
+  field — a real same-id upgrade scenario, someone already on `tabcandy`
+  before this refactor) was already fully closed out by this session's
+  one-time dismissible notice. Nothing about the Beautitab point above
+  changes that; it was never a Beautitab question to begin with.
+- **`localBackgrounds`** (base64 images from "Add vault image"): decided
+  to remove the write path outright. The manual image picker will be
+  rebuilt to store a vault-relative path instead of reading the file and
+  writing a base64 `data:` URI into settings — the same treatment the
+  folder-sync feature already got via `getResourcePath()`, and for the
+  same reason: `ChooseImageSuggestModal` already resolves a `TFile`
+  sitting inside the vault, so there's no need to ever read its bytes at
+  all, just remember where it is.
+
+**No migration or cleanup of already-existing base64 entries is planned.**
+The ask was "ensure no *new* legacy data sneaks through," not "clean up
+old data" — those are different projects, and the second one is real scope
+this session isn't taking on. Existing `localBackgrounds` entries keep
+rendering exactly as they do today (via `App.tsx`'s existing merge of both
+lists); the decision only closes the tap going forward.
+
+**Implementation is deferred to §4**, not done as part of this decision.
+§4 already owns the vault-relative background rebuild, the folder-sync
+half of this exact problem already landed there, and several of its
+checklist items were already describing this manual-add gap in detail
+before this decision existed to point them at. The checklist's §4 items
+covering `readBinary`, object-URL/data-URL conversion, and vault-relative
+caching have been updated to reflect that the manual-add path's fate is
+now settled, not an open question — without changing their checked state,
+since the code itself hasn't moved yet.
+
+## Net effect on the checklist
+
+§2's naming-convention item and the README item's sibling
+class/identifier item are both closed; only the README pass itself
+remains, held for the end of the checklist as planned.
+
+§3 is closed except one item blocked on §9 standing up a test runner —
+`normalizeSettings()` was written as a pure function specifically so it's
+a drop-in unit-test target once that exists. The `localBackgrounds`
+base64 question that was previously the other open item is now decided
+(see above); its implementation lives in §4, not §3.

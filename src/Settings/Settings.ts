@@ -19,20 +19,8 @@ import capitalizeFirstLetter from '../Utils/capitalizeFirstLetter';
 import ConfirmModal from '../modals/ConfirmModal';
 import ChooseImageSuggestModal from '../modals/ChooseImageSuggestModal';
 import { getBackgroundResourcePath } from '../services/backgrounds';
-
-/**
- * Type guard for validating a raw string (e.g. from a DropdownComponent's
- * onChange, which Obsidian types as (value: string) => any regardless of
- * what options were added) against a specific settings enum before it's
- * trusted as that enum's type. Boundary validation instead of an unchecked
- * cast, per the refactor's settings-hardening plan.
- */
-function isEnumValue<T extends Record<string, string>>(
-	enumObject: T,
-	value: string
-): value is T[keyof T] {
-	return (Object.values(enumObject)).includes(value);
-}
+import isEnumValue from '../Utils/isEnumValue';
+import debounce from '../Utils/debounce';
 
 const DEFAULT_SEARCH_PROVIDER: SearchProvider = {
 	command: 'switcher:open',
@@ -47,6 +35,10 @@ export const SEARCH_PROVIDER = [
 ];
 
 export interface TabCandySettings {
+	// Stamped by normalizeSettings() on every load, including a fresh
+	// install with no data.json at all - see CURRENT_SETTINGS_VERSION in
+	// normalizeSettings.ts for what bumping it means.
+	settingsVersion: number;
 	backgroundTheme: BackgroundTheme;
 	customBackground: string;
 	localBackgrounds: string[];
@@ -57,6 +49,12 @@ export interface TabCandySettings {
 	// to detect and explain to upgrading users; do not resurrect direct
 	// reads/writes of this field outside that migration.
 	localBackgroundsDirectory: string;
+	// One-time migration marker: true once the user has dismissed the
+	// "your old computer folder isn't read anymore" notice below. Prevents
+	// a permanent, un-dismissable notice from nagging on every settings
+	// tab open for as long as localBackgroundsDirectory happens to still
+	// have a value.
+	legacyBackgroundsNoticeDismissed: boolean;
 	// Vault-relative folder path (e.g. "Assets/Tab Candy") synced via
 	// src/services/backgrounds.ts using the public vault adapter - the
 	// mobile-safe replacement for localBackgroundsDirectory above.
@@ -83,10 +81,16 @@ export interface TabCandySettings {
 }
 
 export const DEFAULT_SETTINGS: TabCandySettings = {
+	// Real value is always stamped by normalizeSettings() on load; this
+	// default only matters for code that constructs settings without
+	// going through normalizeSettings() (there shouldn't be any, but a
+	// wrong number here should never be load-bearing).
+	settingsVersion: 0,
 	backgroundTheme: BackgroundTheme.SEASONS_AND_HOLIDAYS,
 	customBackground: '',
 	localBackgrounds: [],
 	localBackgroundsDirectory: '',
+	legacyBackgroundsNoticeDismissed: false,
 	backgroundsFolder: '',
 	backgroundFiles: [],
 	showTopLeftSearchButton: true,
@@ -109,9 +113,39 @@ export const DEFAULT_SETTINGS: TabCandySettings = {
 export class TabCandySettingTab extends PluginSettingTab {
 	plugin: TabCandyPlugin;
 
+	// Bound once in the constructor rather than created fresh inside
+	// display() (which reruns on every setting change), so debounced
+	// keystrokes across a redraw still collapse into the same timer
+	// instead of each redraw silently starting a new one.
+	private readonly debouncedUpdateSettings: (
+		patch: Partial<TabCandySettings>
+	) => void;
+
 	constructor(app: App, plugin: TabCandyPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
+		this.debouncedUpdateSettings = debounce(
+			(patch: Partial<TabCandySettings>) => {
+				this.plugin.settingsStore.update(patch);
+			},
+			500
+		);
+	}
+
+	/**
+	 * Update settings through the typed store and, if requested, redraw the
+	 * settings tab. Replaces the old three-line mutate-settings/notify-
+	 * observable/save pattern that was previously repeated at every single
+	 * setting in this file.
+	 */
+	private async updateSettings(
+		patch: Partial<TabCandySettings>,
+		options: { redraw?: boolean } = {}
+	): Promise<void> {
+		await this.plugin.settingsStore.update(patch);
+		if (options.redraw) {
+			this.display();
+		}
 	}
 
 	display(): void {
@@ -138,12 +172,10 @@ export class TabCandySettingTab extends PluginSettingTab {
 
 				component.onChange((value) => {
 					if (!isEnumValue(BackgroundTheme, value)) {return;}
-					this.plugin.settings.backgroundTheme = value;
-					this.plugin.settingsObservable.setValue(
-						this.plugin.settings
+					this.updateSettings(
+						{ backgroundTheme: value },
+						{ redraw: true }
 					);
-					this.plugin.saveSettings();
-					this.display();
 				});
 			});
 
@@ -154,12 +186,9 @@ export class TabCandySettingTab extends PluginSettingTab {
 				.addText((component) => {
 					component.setValue(this.plugin.settings.customBackground);
 					component.onChange((value) => {
-						this.plugin.settings.customBackground = value;
-						this.plugin.settingsObservable.setValue(
-							this.plugin.settings
-						);
-						this.plugin.saveSettings();
-						this.display();
+						this.debouncedUpdateSettings({
+							customBackground: value,
+						});
 					});
 				});
 		}
@@ -174,8 +203,7 @@ export class TabCandySettingTab extends PluginSettingTab {
 			component.setPlaceholder('e.g. Assets/Tab Candy');
 			component.setValue(this.plugin.settings.backgroundsFolder);
 			component.onChange((value) => {
-				this.plugin.settings.backgroundsFolder = value;
-				this.plugin.saveSettings();
+				this.debouncedUpdateSettings({ backgroundsFolder: value });
 			});
 		});
 
@@ -190,12 +218,24 @@ export class TabCandySettingTab extends PluginSettingTab {
 			});
 		});
 
-		if (this.plugin.settings.localBackgroundsDirectory) {
+		if (
+			this.plugin.settings.localBackgroundsDirectory &&
+			!this.plugin.settings.legacyBackgroundsNoticeDismissed
+		) {
 			new Setting(containerEl)
 				.setName('Previous local backgrounds folder (no longer used)')
 				.setDesc(
 					`Tab Candy previously synced local backgrounds from "${this.plugin.settings.localBackgroundsDirectory}" on your computer. That relied on desktop-only APIs that have been removed. Set a folder inside your vault above instead - your old computer folder isn't read anymore and can't be migrated automatically.`
-				);
+				)
+				.addButton((component) => {
+					component.setButtonText('Got it');
+					component.onClick(() => {
+						this.updateSettings(
+							{ legacyBackgroundsNoticeDismissed: true },
+							{ redraw: true }
+						);
+					});
+				});
 		}
 
 		const localBackgroundImagesSetting = new Setting(containerEl).setName(
@@ -209,11 +249,15 @@ export class TabCandySettingTab extends PluginSettingTab {
 					const fileData = await this.app.vault.readBinary(result);
 					const base64Data = arrayBufferToBase64(fileData);
 
-					this.plugin.settings.localBackgrounds.push(
-						`data:image/png;base64,${base64Data}`
+					this.updateSettings(
+						{
+							localBackgrounds: [
+								...this.plugin.settings.localBackgrounds,
+								`data:image/png;base64,${base64Data}`,
+							],
+						},
+						{ redraw: true }
 					);
-					this.plugin.saveSettings();
-					this.display();
 				}).open();
 			});
 		});
@@ -240,12 +284,15 @@ export class TabCandySettingTab extends PluginSettingTab {
 					new ConfirmModal(
 						this.app,
 						() => {
-							this.plugin.settings.localBackgrounds.splice(
-								index,
-								1
+							this.updateSettings(
+								{
+									localBackgrounds:
+										this.plugin.settings.localBackgrounds.filter(
+											(_, i) => i !== index
+										),
+								},
+								{ redraw: true }
 							);
-							this.plugin.saveSettings();
-							this.display();
 						},
 						'Remove background',
 						`Are you sure?`,
@@ -288,12 +335,10 @@ export class TabCandySettingTab extends PluginSettingTab {
 					this.plugin.settings.showTopLeftSearchButton
 				);
 				component.onChange((value) => {
-					this.plugin.settings.showTopLeftSearchButton = value;
-					this.plugin.settingsObservable.setValue(
-						this.plugin.settings
+					this.updateSettings(
+						{ showTopLeftSearchButton: value },
+						{ redraw: true }
 					);
-					this.plugin.saveSettings();
-					this.display();
 				});
 			});
 
@@ -317,12 +362,10 @@ export class TabCandySettingTab extends PluginSettingTab {
 						this.app,
 						this.plugin.settings,
 						(result) => {
-							this.plugin.settings.topLeftSearchProvider = result;
-							this.plugin.settingsObservable.setValue(
-								this.plugin.settings
+							this.updateSettings(
+								{ topLeftSearchProvider: result },
+								{ redraw: true }
 							);
-							this.plugin.saveSettings();
-							this.display();
 						}
 					).open();
 				});
@@ -336,12 +379,10 @@ export class TabCandySettingTab extends PluginSettingTab {
 			.addToggle((component) => {
 				component.setValue(this.plugin.settings.showInlineSearch);
 				component.onChange((value) => {
-					this.plugin.settings.showInlineSearch = value;
-					this.plugin.settingsObservable.setValue(
-						this.plugin.settings
+					this.updateSettings(
+						{ showInlineSearch: value },
+						{ redraw: true }
 					);
-					this.plugin.saveSettings();
-					this.display();
 				});
 			});
 
@@ -365,12 +406,10 @@ export class TabCandySettingTab extends PluginSettingTab {
 						this.app,
 						this.plugin.settings,
 						(result) => {
-							this.plugin.settings.inlineSearchProvider = result;
-							this.plugin.settingsObservable.setValue(
-								this.plugin.settings
+							this.updateSettings(
+								{ inlineSearchProvider: result },
+								{ redraw: true }
 							);
-							this.plugin.saveSettings();
-							this.display();
 						}
 					).open();
 				});
@@ -389,12 +428,7 @@ export class TabCandySettingTab extends PluginSettingTab {
 			.addToggle((component) => {
 				component.setValue(this.plugin.settings.showTime);
 				component.onChange((value) => {
-					this.plugin.settings.showTime = value;
-					this.plugin.settingsObservable.setValue(
-						this.plugin.settings
-					);
-					this.plugin.saveSettings();
-					this.display();
+					this.updateSettings({ showTime: value }, { redraw: true });
 				});
 			});
 
@@ -415,12 +449,7 @@ export class TabCandySettingTab extends PluginSettingTab {
 
 				component.onChange((value) => {
 					if (!isEnumValue(TIME_FORMAT, value)) {return;}
-					this.plugin.settings.timeFormat = value;
-					this.plugin.settingsObservable.setValue(
-						this.plugin.settings
-					);
-					this.plugin.saveSettings();
-					this.display();
+					this.updateSettings({ timeFormat: value }, { redraw: true });
 				});
 			});
 
@@ -437,12 +466,10 @@ export class TabCandySettingTab extends PluginSettingTab {
 			.addToggle((component) => {
 				component.setValue(this.plugin.settings.showGreeting);
 				component.onChange((value) => {
-					this.plugin.settings.showGreeting = value;
-					this.plugin.settingsObservable.setValue(
-						this.plugin.settings
+					this.updateSettings(
+						{ showGreeting: value },
+						{ redraw: true }
 					);
-					this.plugin.saveSettings();
-					this.display();
 				});
 			});
 
@@ -454,11 +481,7 @@ export class TabCandySettingTab extends PluginSettingTab {
 			.addText((component) => {
 				component.setValue(this.plugin.settings.greetingText);
 				component.onChange((value) => {
-					this.plugin.settings.greetingText = value;
-					this.plugin.settingsObservable.setValue(
-						this.plugin.settings
-					);
-					this.plugin.saveSettings();
+					this.debouncedUpdateSettings({ greetingText: value });
 				});
 			});
 
@@ -475,12 +498,10 @@ export class TabCandySettingTab extends PluginSettingTab {
 			.addToggle((component) => {
 				component.setValue(this.plugin.settings.showRecentFiles);
 				component.onChange((value) => {
-					this.plugin.settings.showRecentFiles = value;
-					this.plugin.settingsObservable.setValue(
-						this.plugin.settings
+					this.updateSettings(
+						{ showRecentFiles: value },
+						{ redraw: true }
 					);
-					this.plugin.saveSettings();
-					this.display();
 				});
 			});
 
@@ -497,12 +518,10 @@ export class TabCandySettingTab extends PluginSettingTab {
 			.addToggle((component) => {
 				component.setValue(this.plugin.settings.showBookmarks);
 				component.onChange((value) => {
-					this.plugin.settings.showBookmarks = value;
-					this.plugin.settingsObservable.setValue(
-						this.plugin.settings
+					this.updateSettings(
+						{ showBookmarks: value },
+						{ redraw: true }
 					);
-					this.plugin.saveSettings();
-					this.display();
 				});
 			});
 
@@ -521,12 +540,10 @@ export class TabCandySettingTab extends PluginSettingTab {
 				component.setValue(this.plugin.settings.bookmarkSource);
 				component.onChange((value) => {
 					if (!isEnumValue(BOOKMARK_SOURCE, value)) {return;}
-					this.plugin.settings.bookmarkSource = value;
-					this.plugin.settingsObservable.setValue(
-						this.plugin.settings
+					this.updateSettings(
+						{ bookmarkSource: value },
+						{ redraw: true }
 					);
-					this.plugin.saveSettings();
-					this.display();
 				});
 			});
 
@@ -541,12 +558,10 @@ export class TabCandySettingTab extends PluginSettingTab {
 
 					component.setValue(this.plugin.settings.bookmarkGroup);
 					component.onChange((value) => {
-						this.plugin.settings.bookmarkGroup = value;
-						this.plugin.settingsObservable.setValue(
-							this.plugin.settings
+						this.updateSettings(
+							{ bookmarkGroup: value },
+							{ redraw: true }
 						);
-						this.plugin.saveSettings();
-						this.display();
 					});
 				});
 		}
@@ -564,12 +579,7 @@ export class TabCandySettingTab extends PluginSettingTab {
 			.addToggle((component) => {
 				component.setValue(this.plugin.settings.showQuote);
 				component.onChange((value) => {
-					this.plugin.settings.showQuote = value;
-					this.plugin.settingsObservable.setValue(
-						this.plugin.settings
-					);
-					this.plugin.saveSettings();
-					this.display();
+					this.updateSettings({ showQuote: value }, { redraw: true });
 				});
 			});
 
@@ -586,12 +596,7 @@ export class TabCandySettingTab extends PluginSettingTab {
 				component.setValue(this.plugin.settings.quoteSource);
 				component.onChange((value) => {
 					if (!isEnumValue(QUOTE_SOURCE, value)) {return;}
-					this.plugin.settings.quoteSource = value;
-					this.plugin.settingsObservable.setValue(
-						this.plugin.settings
-					);
-					this.plugin.saveSettings();
-					this.display();
+					this.updateSettings({ quoteSource: value }, { redraw: true });
 				});
 			});
 
@@ -605,10 +610,10 @@ export class TabCandySettingTab extends PluginSettingTab {
 					new CustomQuotesModel(
 						this.plugin,
 						(modifiedCustomQuotes: CustomQuote[]) => {
-							this.plugin.settings.customQuotes =
-								modifiedCustomQuotes;
-							this.plugin.saveSettings();
-							this.display();
+							this.updateSettings(
+								{ customQuotes: modifiedCustomQuotes },
+								{ redraw: true }
+							);
 						}
 					).open();
 				});

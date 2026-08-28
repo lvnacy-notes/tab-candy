@@ -7,7 +7,7 @@ import {
 import { useObsidian } from '../../Context/ObsidianAppContext';
 import { TFile, getIcon } from 'obsidian';
 import getTime from '../../Utils/getTime';
-import Observable from '../../../src/Utils/Observable';
+import SettingsStore from '../../../src/Settings/SettingsStore';
 import TabCandyPlugin from '../../../main';
 import getBackground from '../../Utils/getBackground';
 import { getBackgroundResourcePath } from '../../../src/services/backgrounds';
@@ -23,7 +23,7 @@ import { BackgroundTheme } from '../../../src/Types/Enums';
  */
 const Icon = ({ name }: { name: string }) => {
 	const iconText = new XMLSerializer().serializeToString(
-		getIcon(name) || new Node()
+		getIcon(name) ?? new Node()
 	);
 
 	return (
@@ -37,10 +37,10 @@ const Icon = ({ name }: { name: string }) => {
 };
 
 const App = ({
-	settingsObservable,
+	settingsStore,
 	plugin,
 }: {
-	settingsObservable: Observable;
+	settingsStore: SettingsStore;
 	plugin: TabCandyPlugin;
 }) => {
 	const [quote, setQuote] = useState<{
@@ -48,7 +48,7 @@ const App = ({
 		author: string;
 	} | null>(null);
 	const [settings, setSettings] = useState<TabCandySettings>(
-		settingsObservable.getValue()
+		settingsStore.get()
 	);
 	const [time, setTime] = useState(getTime(settings.timeFormat));
 	const mainDivRef = useRef<HTMLDivElement>(null);
@@ -134,7 +134,7 @@ const App = ({
 	 * Subscribe to settings from Obsidian
 	 */
 	useEffect(() => {
-		const unsubscribe = settingsObservable.onChange(
+		const unsubscribe = settingsStore.subscribe(
 			(newSettings: TabCandySettings) => {
 				setSettings(newSettings);
 			}
