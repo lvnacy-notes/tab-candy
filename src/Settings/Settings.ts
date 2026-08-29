@@ -4,7 +4,6 @@ import {
 	App,
 	PluginSettingTab,
 	Setting,
-	arrayBufferToBase64
 } from 'obsidian';
 import ChooseSearchProvider from '../modals/ChooseSearchProvider';
 import CustomQuotesModel from '../modals/CustomQuotesModel';
@@ -18,7 +17,12 @@ import { CustomQuote, SearchProvider } from '../Types/Interfaces';
 import capitalizeFirstLetter from '../Utils/capitalizeFirstLetter';
 import ConfirmModal from '../modals/ConfirmModal';
 import ChooseImageSuggestModal from '../modals/ChooseImageSuggestModal';
-import { getBackgroundResourcePath } from '../services/backgrounds';
+import ChooseBackgroundFolderModal from '../modals/ChooseBackgroundFolderModal';
+import {
+	filterExistingFiles,
+	getBackgroundResourcePath,
+	syncBackgroundsFolder,
+} from '../services/backgrounds';
 import isEnumValue from '../Utils/isEnumValue';
 import debounce from '../Utils/debounce';
 
@@ -41,28 +45,23 @@ export interface TabCandySettings {
 	settingsVersion: number;
 	backgroundTheme: BackgroundTheme;
 	customBackground: string;
-	localBackgrounds: string[];
-	// Legacy OS-path field from the pre-refactor Electron/fs-based folder
-	// sync. No longer read or written by any runtime code path - the sync
-	// feature it powered was removed in §1 (electron/fs removal) and rebuilt
-	// vault-relative below. Kept only so §3's settings migration has a field
-	// to detect and explain to upgrading users; do not resurrect direct
-	// reads/writes of this field outside that migration.
-	localBackgroundsDirectory: string;
-	// One-time migration marker: true once the user has dismissed the
-	// "your old computer folder isn't read anymore" notice below. Prevents
-	// a permanent, un-dismissable notice from nagging on every settings
-	// tab open for as long as localBackgroundsDirectory happens to still
-	// have a value.
-	legacyBackgroundsNoticeDismissed: boolean;
 	// Vault-relative folder path (e.g. "Assets/Tab Candy") synced via
-	// src/services/backgrounds.ts using the public vault adapter - the
-	// mobile-safe replacement for localBackgroundsDirectory above.
+	// src/services/backgrounds.ts using the public vault adapter.
 	backgroundsFolder: string;
 	// Vault-relative file paths discovered by the last folder sync. Paths
 	// only, never image bytes - resolved to a displayable URL at render
 	// time via getBackgroundResourcePath(), not cached as data here.
+	// Overwritten wholesale on every sync - do not append individually
+	// picked images here (see manualBackgroundFiles below).
 	backgroundFiles: string[];
+	// Vault-relative paths for images added one at a time via "Add vault
+	// image", as opposed to backgroundFiles' whole-folder sync. Kept as a
+	// separate field rather than appended into backgroundFiles because
+	// syncBackgroundsFolder() replaces backgroundFiles entirely on every
+	// sync - folding manual picks into that array would silently drop them
+	// the next time "Sync now" runs or the plugin reloads. Paths only, same
+	// as backgroundFiles.
+	manualBackgroundFiles: string[];
 	showTopLeftSearchButton: boolean;
 	topLeftSearchProvider: SearchProvider;
 	showTime: boolean;
@@ -88,11 +87,9 @@ export const DEFAULT_SETTINGS: TabCandySettings = {
 	settingsVersion: 0,
 	backgroundTheme: BackgroundTheme.SEASONS_AND_HOLIDAYS,
 	customBackground: '',
-	localBackgrounds: [],
-	localBackgroundsDirectory: '',
-	legacyBackgroundsNoticeDismissed: false,
 	backgroundsFolder: '',
 	backgroundFiles: [],
+	manualBackgroundFiles: [],
 	showTopLeftSearchButton: true,
 	topLeftSearchProvider: DEFAULT_SEARCH_PROVIDER,
 	showTime: true,
@@ -134,9 +131,7 @@ export class TabCandySettingTab extends PluginSettingTab {
 
 	/**
 	 * Update settings through the typed store and, if requested, redraw the
-	 * settings tab. Replaces the old three-line mutate-settings/notify-
-	 * observable/save pattern that was previously repeated at every single
-	 * setting in this file.
+	 * settings tab.
 	 */
 	private async updateSettings(
 		patch: Partial<TabCandySettings>,
@@ -196,7 +191,7 @@ export class TabCandySettingTab extends PluginSettingTab {
 		const backgroundsFolderSetting = new Setting(containerEl)
 			.setName('Local background images folder')
 			.setDesc(
-				`A folder inside your vault to sync background images from (not including subfolders). Supports jpg/jpeg/png/webp/gif. Works on desktop and mobile - unlike the old version of this feature, it points at a folder in your vault rather than one on your computer.`
+				`A folder inside your vault to sync background images from (not including subfolders). Supports jpg/jpeg/png/webp/gif. Works on desktop and mobile.`
 			);
 
 		backgroundsFolderSetting.addText((component) => {
@@ -208,35 +203,32 @@ export class TabCandySettingTab extends PluginSettingTab {
 		});
 
 		backgroundsFolderSetting.addButton((component) => {
+			component.setButtonText('Browse');
+			component.setTooltip('Choose a folder from your vault');
+			component.onClick(() => {
+				new ChooseBackgroundFolderModal(this.app, async (folder) => {
+					await this.updateSettings({
+						backgroundsFolder: folder.path,
+					});
+					await syncBackgroundsFolder(
+						this.app,
+						this.plugin.settingsStore
+					);
+					this.display();
+				}).open();
+			});
+		});
+
+		backgroundsFolderSetting.addButton((component) => {
 			component.setButtonText('Sync now');
 			component.setTooltip(
 				'Re-scan the folder above and refresh the local backgrounds list'
 			);
 			component.onClick(async () => {
-				await this.plugin.syncBackgroundsFolder();
+				await syncBackgroundsFolder(this.app, this.plugin.settingsStore);
 				this.display();
 			});
 		});
-
-		if (
-			this.plugin.settings.localBackgroundsDirectory &&
-			!this.plugin.settings.legacyBackgroundsNoticeDismissed
-		) {
-			new Setting(containerEl)
-				.setName('Previous local backgrounds folder (no longer used)')
-				.setDesc(
-					`Tab Candy previously synced local backgrounds from "${this.plugin.settings.localBackgroundsDirectory}" on your computer. That relied on desktop-only APIs that have been removed. Set a folder inside your vault above instead - your old computer folder isn't read anymore and can't be migrated automatically.`
-				)
-				.addButton((component) => {
-					component.setButtonText('Got it');
-					component.onClick(() => {
-						this.updateSettings(
-							{ legacyBackgroundsNoticeDismissed: true },
-							{ redraw: true }
-						);
-					});
-				});
-		}
 
 		const localBackgroundImagesSetting = new Setting(containerEl).setName(
 			'Local background images'
@@ -245,15 +237,21 @@ export class TabCandySettingTab extends PluginSettingTab {
 		localBackgroundImagesSetting.addButton((component) => {
 			component.setButtonText('Add vault image');
 			component.onClick(() => {
-				new ChooseImageSuggestModal(this.app, async (result) => {
-					const fileData = await this.app.vault.readBinary(result);
-					const base64Data = arrayBufferToBase64(fileData);
-
+				// Stores the picked file's vault-relative path, resolved to a
+				// displayable URL at render time via getBackgroundResourcePath().
+				new ChooseImageSuggestModal(this.app, (result) => {
+					if (
+						this.plugin.settings.manualBackgroundFiles.includes(
+							result.path
+						)
+					) {
+						return;
+					}
 					this.updateSettings(
 						{
-							localBackgrounds: [
-								...this.plugin.settings.localBackgrounds,
-								`data:image/png;base64,${base64Data}`,
+							manualBackgroundFiles: [
+								...this.plugin.settings.manualBackgroundFiles,
+								result.path,
 							],
 						},
 						{ redraw: true }
@@ -262,18 +260,32 @@ export class TabCandySettingTab extends PluginSettingTab {
 			});
 		});
 
-		const localBackgroundsDiv = containerEl.createDiv({
-			cls: 'tabcandy-settings-localbackgrounds',
-		});
+		// Filtered defensively at render time rather than trusting settings
+		// as-is: a file recorded here can be deleted or renamed outside of
+		// a vault event the plugin caught (most commonly, while Obsidian
+		// wasn't running to see the event at all). main.ts prunes
+		// manualBackgroundFiles for real - persisting the result - once on
+		// every load and live on delete/rename events while running; this
+		// is a cheap best-effort display-only pass for whatever a slow-to-
+		// arrive prune hasn't caught up with yet, not a substitute for it.
+		const existingManualBackgroundFiles = filterExistingFiles(
+			this.app,
+			this.plugin.settings.manualBackgroundFiles
+		);
 
-		this.plugin.settings.localBackgrounds.forEach(
-			(localBackground, index) => {
-				const backgroundDiv = localBackgroundsDiv.createDiv({
+		if (existingManualBackgroundFiles.length) {
+			const manualBackgroundsDiv = containerEl.createDiv({
+				cls: 'tabcandy-settings-localbackgrounds',
+			});
+
+			existingManualBackgroundFiles.forEach((filePath) => {
+				const backgroundDiv = manualBackgroundsDiv.createDiv({
 					cls: 'tabcandy-settings-localbackgrounds-background',
 				});
 				backgroundDiv.createEl('img', {
 					attr: {
-						src: localBackground,
+						src: getBackgroundResourcePath(this.app, filePath),
+						title: filePath,
 					},
 				});
 				backgroundDiv.createEl('button', {
@@ -286,9 +298,9 @@ export class TabCandySettingTab extends PluginSettingTab {
 						() => {
 							this.updateSettings(
 								{
-									localBackgrounds:
-										this.plugin.settings.localBackgrounds.filter(
-											(_, i) => i !== index
+									manualBackgroundFiles:
+										this.plugin.settings.manualBackgroundFiles.filter(
+											(path) => path !== filePath
 										),
 								},
 								{ redraw: true }
@@ -299,15 +311,20 @@ export class TabCandySettingTab extends PluginSettingTab {
 						'Remove'
 					).open();
 				});
-			}
+			});
+		}
+
+		const existingBackgroundFiles = filterExistingFiles(
+			this.app,
+			this.plugin.settings.backgroundFiles
 		);
 
-		if (this.plugin.settings.backgroundFiles.length) {
+		if (existingBackgroundFiles.length) {
 			const syncedBackgroundsDiv = containerEl.createDiv({
 				cls: 'tabcandy-settings-localbackgrounds',
 			});
 
-			this.plugin.settings.backgroundFiles.forEach((filePath) => {
+			existingBackgroundFiles.forEach((filePath) => {
 				const backgroundDiv = syncedBackgroundsDiv.createDiv({
 					cls: 'tabcandy-settings-localbackgrounds-background',
 				});

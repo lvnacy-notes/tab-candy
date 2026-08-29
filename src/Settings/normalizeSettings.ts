@@ -64,9 +64,6 @@ export function normalizeSettings(raw: unknown): TabCandySettings {
 	if (typeof data.customBackground === 'string') {
 		normalized.customBackground = data.customBackground;
 	}
-	if (typeof data.localBackgroundsDirectory === 'string') {
-		normalized.localBackgroundsDirectory = data.localBackgroundsDirectory;
-	}
 	if (typeof data.backgroundsFolder === 'string') {
 		normalized.backgroundsFolder = data.backgroundsFolder;
 	}
@@ -96,10 +93,6 @@ export function normalizeSettings(raw: unknown): TabCandySettings {
 	}
 	if (typeof data.showQuote === 'boolean') {
 		normalized.showQuote = data.showQuote;
-	}
-	if (typeof data.legacyBackgroundsNoticeDismissed === 'boolean') {
-		normalized.legacyBackgroundsNoticeDismissed =
-			data.legacyBackgroundsNoticeDismissed;
 	}
 
 	// Enum-backed fields: validate against the enum instead of trusting
@@ -133,11 +126,11 @@ export function normalizeSettings(raw: unknown): TabCandySettings {
 	// Arrays: only trust them if every entry is actually shaped right.
 	// An empty array is always a safe fallback (matches DEFAULT_SETTINGS),
 	// so a malformed array is dropped wholesale rather than partially kept.
-	if (isStringArray(data.localBackgrounds)) {
-		normalized.localBackgrounds = data.localBackgrounds;
-	}
 	if (isStringArray(data.backgroundFiles)) {
 		normalized.backgroundFiles = data.backgroundFiles;
+	}
+	if (isStringArray(data.manualBackgroundFiles)) {
+		normalized.manualBackgroundFiles = data.manualBackgroundFiles;
 	}
 	if (Array.isArray(data.customQuotes) && data.customQuotes.every(isValidCustomQuote)) {
 		normalized.customQuotes = data.customQuotes;

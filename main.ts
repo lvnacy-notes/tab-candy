@@ -1,8 +1,4 @@
-import {
-	Notice,
-	Plugin,
-	requestUrl
-} from 'obsidian';
+import { Plugin } from 'obsidian';
 import {
 	TabCandyView,
 	TAB_CANDY_VIEW_TYPE
@@ -13,7 +9,13 @@ import {
 	TabCandySettings,
 } from 'src/Settings/Settings';
 import { normalizeSettings } from 'src/Settings/normalizeSettings';
-import { listBackgroundFilesInFolder } from 'src/services/backgrounds';
+import {
+	pruneMissingManualBackgroundFiles,
+	registerBackgroundVaultWatchers,
+	syncBackgroundsFolder,
+} from 'src/services/backgrounds';
+import { checkForPluginUpdates } from 'src/services/versionCheck';
+import { hijackEmptyLeafForNewTab } from 'src/services/newTabHijack';
 
 /**
  * This allows a "live-reload" of Obsidian when developing the plugin.
@@ -52,26 +54,38 @@ export default class TabCandyPlugin extends Plugin {
 			this.settings = settings;
 		});
 
-		this.versionCheck();
+		void checkForPluginUpdates();
 
-		// If a vault-relative backgrounds folder is already configured,
-		// refresh the list of synced files on every load/reload/restart -
-		// same behavior the old OS-folder sync had, minus the Node fs
-		// dependency and the desktop-only restriction.
-		await this.syncBackgroundsFolder();
+		// Refreshes the list of synced files on every load/reload/restart so
+		// background images are available immediately, without requiring an
+		// explicit "Sync now" click first.
+		await syncBackgroundsFolder(this.app, this.settingsStore);
+
+		// Catches deletions/renames of individually-added images that
+		// happened while the plugin wasn't loaded to see the vault event
+		// (closing Obsidian, editing the vault elsewhere, reopening it -
+		// an ordinary flow, not an edge case). Deletions/renames that
+		// happen while the plugin is running are instead caught live by
+		// the event listeners registered below.
+		await pruneMissingManualBackgroundFiles(this.app, this.settingsStore);
+
+		registerBackgroundVaultWatchers(
+			this.app,
+			this.settingsStore,
+			(eventRef) => this.registerEvent(eventRef)
+		);
 
 		this.registerView(
 			TAB_CANDY_VIEW_TYPE,
 			(leaf) =>
-				new TabCandyView(this.app, this.settingsStore, leaf, this)
+				new TabCandyView(this.app, this.settingsStore, leaf)
 		);
 
 		this.addSettingTab(new TabCandySettingTab(this.app, this));
 
 		this.registerEvent(
-			this.app.workspace.on(
-				'layout-change',
-				this.onLayoutChange.bind(this)
+			this.app.workspace.on('layout-change', () =>
+				hijackEmptyLeafForNewTab(this.app)
 			)
 		);
 
@@ -95,10 +109,8 @@ export default class TabCandyPlugin extends Plugin {
 	/**
 	 * Load data from disk (data.json in the plugin folder), normalize it
 	 * against defaults and validation rules (normalizeSettings.ts), and
-	 * construct the typed settings store around the result. Trusting raw
-	 * loadData() output directly (the old `Object.assign({}, DEFAULT_
-	 * SETTINGS, data)`) had no enum checking or schema validation at all;
-	 * normalizeSettings() is what actually enforces that now.
+	 * construct the typed settings store around the result. normalizeSettings()
+	 * enforces enum checking and schema validation on every field.
 	 */
 	async loadSettings() {
 		const data = (await this.loadData()) ?? {};
@@ -107,92 +119,5 @@ export default class TabCandyPlugin extends Plugin {
 			normalized,
 			(settings) => this.saveData(settings)
 		);
-	}
-
-	/**
-	 * Re-scan the configured vault-relative backgrounds folder and refresh
-	 * settings.backgroundFiles. Thin plugin-lifecycle wrapper around
-	 * src/services/backgrounds.ts's actual discovery logic - safe to call
-	 * repeatedly (on load, on a settings change, or from the "Sync now"
-	 * button), and safe to call with no folder configured (resolves to an
-	 * empty list rather than throwing).
-	 */
-	async syncBackgroundsFolder() {
-		const backgroundFiles = await listBackgroundFilesInFolder(
-			this.app,
-			this.settings.backgroundsFolder
-		);
-		await this.settingsStore.update({ backgroundFiles });
-	}
-
-	/**
-	 * Check the local plugin version against github. If there is a new version, notify the user.
-	 */
-	async versionCheck() {
-		const localVersion = process.env.PLUGIN_VERSION;
-		const stableVersion = await requestUrl(
-			'https://raw.githubusercontent.com/lvnacy-notes/tab-candy/main/package.json'
-		).then(async (res) => {
-			if (res.status === 200) {
-				const response = await res.json;
-				return response.version;
-			}
-		});
-		const betaVersion = await requestUrl(
-			'https://raw.githubusercontent.com/lvnacy-notes/tab-candy/beta/package.json'
-		).then(async (res) => {
-			if (res.status === 200) {
-				const response = await res.json;
-				return response.version;
-			}
-		});
-
-		if (localVersion?.indexOf('beta') !== -1) {
-			if (localVersion !== betaVersion) {
-				new Notice(
-					'There is a beta update available for the Tab Candy plugin. Please update to to the latest version to get the latest features!',
-					0
-				);
-			}
-		} else if (localVersion !== stableVersion) {
-			new Notice(
-				'There is an update available for the Tab Candy plugin. Please update to to the latest version to get the latest features!',
-				0
-			);
-		}
-	}
-
-	/**
-	 * Hijack new tabs and show Tab Candy
-	 */
-	private onLayoutChange(): void {
-		const leaf = this.app.workspace.getMostRecentLeaf();
-		if (leaf?.getViewState().type === 'empty') {
-			leaf.setViewState({
-				type: TAB_CANDY_VIEW_TYPE,
-			});
-		}
-	}
-
-	/**
-	 * Check if the choosen provider is enabled
-	 * If yes: open it by using executeCommandById
-	 * If no: Notice the user and tell them to enable it in the settings
-	 */
-	openSwitcherCommand(command: string): void {
-		const pluginID = command.split(':')[0];
-		//@ts-ignore
-		const { plugins } = this.app.plugins;
-		//@ts-ignore
-		const internalPlugins = this.app.internalPlugins.plugins;
-
-		if (plugins[pluginID] || internalPlugins[pluginID]?.enabled) {
-			//@ts-ignore
-			this.app.commands.executeCommandById(command);
-		} else {
-			new Notice(
-				`Plugin ${pluginID} is not enabled. Please enable it in the settings.`
-			);
-		}
 	}
 }

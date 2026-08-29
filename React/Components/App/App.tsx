@@ -8,9 +8,9 @@ import { useObsidian } from '../../Context/ObsidianAppContext';
 import { TFile, getIcon } from 'obsidian';
 import getTime from '../../Utils/getTime';
 import SettingsStore from '../../../src/Settings/SettingsStore';
-import TabCandyPlugin from '../../../main';
 import getBackground from '../../Utils/getBackground';
 import { getBackgroundResourcePath } from '../../../src/services/backgrounds';
+import { executeEnabledPluginCommand } from '../../../src/services/commands';
 import getTimeOfDayGreeting from '../../Utils/getTimeOfDayGreeting';
 import { getBookmarks } from '../../Utils/getBookmarks';
 import { TabCandySettings } from '../../../src/Settings/Settings';
@@ -36,13 +36,7 @@ const Icon = ({ name }: { name: string }) => {
 	);
 };
 
-const App = ({
-	settingsStore,
-	plugin,
-}: {
-	settingsStore: SettingsStore;
-	plugin: TabCandyPlugin;
-}) => {
+const App = ({ settingsStore }: { settingsStore: SettingsStore }) => {
 	const [quote, setQuote] = useState<{
 		content: string;
 		author: string;
@@ -55,22 +49,23 @@ const App = ({
 
 	const obsidian = useObsidian();
 
-	// Vault-folder-synced backgrounds are stored as vault-relative paths
-	// (never bytes), so they need resolving to an actual displayable URL at
-	// render time - unlike settings.localBackgrounds, which are manually
-	// added images already stored as ready-to-use base64 data URIs. Both
-	// lists are merged here so BackgroundTheme.LOCAL treats "manually added"
-	// and "folder-synced" images identically downstream.
+	// Vault-folder-synced backgrounds (backgroundFiles) and individually
+	// added vault images (manualBackgroundFiles) are both stored as
+	// vault-relative paths, never image bytes, so they need resolving to an
+	// actual displayable URL at render time. The two lists are merged here
+	// so BackgroundTheme.LOCAL treats them identically downstream
+	// regardless of which path added a given image.
 	const combinedLocalBackgrounds = useMemo(
-		() => [
-			...settings.localBackgrounds,
-			...(obsidian
-				? settings.backgroundFiles.map((filePath) =>
+		() =>
+			obsidian
+				? [
+					...settings.backgroundFiles,
+					...settings.manualBackgroundFiles,
+				].map((filePath) =>
 					getBackgroundResourcePath(obsidian, filePath)
 				)
-				: []),
-		],
-		[settings.localBackgrounds, settings.backgroundFiles, obsidian]
+				: [],
+		[settings.backgroundFiles, settings.manualBackgroundFiles, obsidian]
 	);
 
 	const background = useMemo(
@@ -171,9 +166,11 @@ const App = ({
 			}}
 			onKeyDown={(e) => {
 				if (!e.ctrlKey && !e.altKey && /^[A-Za-z0-9]$/.test(e.key)) {
-					plugin.openSwitcherCommand(
-						settings.inlineSearchProvider.command
-					);
+					obsidian &&
+						executeEnabledPluginCommand(
+							obsidian,
+							settings.inlineSearchProvider.command
+						);
 				}
 			}}
 			tabIndex={0} // Make the div focusable so we can capture key strokes
@@ -185,9 +182,11 @@ const App = ({
 						<a
 							className='tabcandy-iconbutton'
 							onClick={() => {
-								plugin.openSwitcherCommand(
-									settings.topLeftSearchProvider.command
-								);
+								obsidian &&
+									executeEnabledPluginCommand(
+										obsidian,
+										settings.topLeftSearchProvider.command
+									);
 							}}
 						>
 							<span className='tabcandy-iconbutton-text'>
@@ -216,9 +215,11 @@ const App = ({
 							<a
 								className='tabcandy-search-wrapper'
 								onClick={() => {
-									plugin.openSwitcherCommand(
-										settings.inlineSearchProvider.command
-									);
+									obsidian &&
+										executeEnabledPluginCommand(
+											obsidian,
+											settings.inlineSearchProvider.command
+										);
 								}}
 							>
 								<Icon name='search' />

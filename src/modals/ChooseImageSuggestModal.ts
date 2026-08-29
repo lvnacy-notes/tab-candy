@@ -21,10 +21,8 @@ class ChooseImageSuggestModal extends FuzzySuggestModal<TFile> {
 	/**
 	 * Gets all supported image types from the vault. Uses the same extension
 	 * list as the background-folder sync (src/Types/Images.ts) so a manually
-	 * picked image and a folder-synced image are never held to different
-	 * rules - the pre-refactor version of this modal only allowed jpg/png,
-	 * narrower than the folder sync's jpg/jpeg/png/webp/gif, for no reason
-	 * other than the two lists having drifted apart.
+	 * picked image and a folder-synced image are always held to the same
+	 * rules.
 	 */
 	getItems(): TFile[] {
 		return this.app.vault
