@@ -1,8 +1,4 @@
-import {
-	App,
-	TAbstractFile,
-	TFile
-} from 'obsidian';
+import { App, TFile } from 'obsidian';
 import { TabCandySettings } from '../Settings/Settings';
 import { BOOKMARK_SOURCE } from '../Types/Enums';
 
@@ -129,7 +125,7 @@ const getBookmarksByGroupName = (
 export const getBookmarks = (
 	app: App | undefined,
 	settings: TabCandySettings
-): TAbstractFile[] => {
+): TFile[] => {
 	const items = getBookmarkItems(app);
 
 	const fileBookmarks =

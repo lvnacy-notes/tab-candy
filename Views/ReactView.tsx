@@ -1,7 +1,6 @@
 import { ItemView, WorkspaceLeaf } from 'obsidian';
 import { Root, createRoot } from 'react-dom/client';
 import ReactApp from '../React/Components/App/App';
-import { ObsidianContext } from '../React/Context/ObsidianAppContext';
 import SettingsStore from 'src/Settings/SettingsStore';
 
 export const TAB_CANDY_VIEW_TYPE = 'tabcandy-react-view';
@@ -39,9 +38,7 @@ export class TabCandyView extends ItemView {
 
 		this.root = createRoot(this.contentEl);
 		this.root.render(
-			<ObsidianContext.Provider value={this.app}>
-				<ReactApp settingsStore={this.settingsStore} />
-			</ObsidianContext.Provider>
+			<ReactApp app={this.app} settingsStore={this.settingsStore} />
 		);
 		this.containerEl.addClass('tabcandy');
 	}

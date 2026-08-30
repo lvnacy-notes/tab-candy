@@ -187,21 +187,21 @@ Entered this section with the build broken: removing this project's remaining `@
 
 ## 7. React Restructure
 
-- [ ] Reduce `App.tsx` to a composition root and presentation orchestration.
-- [ ] Move background discovery/loading and URL cleanup into a background service or hook.
-- [ ] Move recent-file queries into a typed data service or hook.
-- [ ] Move bookmarks behind the bookmark adapter.
-- [ ] Move quote loading, error, and loading state into a quote service or hook.
-- [ ] Move command-provider availability and execution behind a command service.
-- [ ] Move time ticking and formatting into a focused hook or pure utility.
-- [ ] Isolate icon adaptation in one component.
-- [ ] Remove the context if the view can pass a small typed model and callbacks directly.
-- [ ] Keep only meaningful presentational boundaries, such as `SearchButton`, `RecentFiles`, `Bookmarks`, `Quote`, and `BackgroundSurface`.
-- [ ] Avoid creating a component for every small text block.
-- [ ] Replace `dangerouslySetInnerHTML` where practical; otherwise isolate and constrain it.
-- [ ] Ensure keyboard search behavior works with mobile and desktop input expectations.
-- [ ] Test loading, empty, error, and populated render states.
-- [ ] Test view unmount, settings updates, timer cleanup, and background cleanup.
+- [x] Reduce `App.tsx` to a composition root and presentation orchestration. `App.tsx` now only calls hooks, wires two callbacks (`openFile`, `runInlineSearch`), and composes `BackgroundSurface`/`SearchButton`/`RecentFiles`/`Bookmarks`/`QuoteDisplay`. No data fetching, no timers, no network calls, no icon serialization left in it.
+- [x] Move background discovery/loading and URL cleanup into a background service or hook. `useBackground()` in `React/Hooks/hooks.ts` - vault discovery/URL resolution already lived in `src/services/backgrounds.ts` (§4); this hook is the render-time seam that calls it and picks the active theme's URL via `getBackground()`.
+- [x] Move recent-file queries into a typed data service or hook. `useRecentFiles()` in `React/Hooks/hooks.ts`, returns `TFile[]`.
+- [x] Move bookmarks behind the bookmark adapter. `useBookmarks()` in `React/Hooks/hooks.ts` calls `getBookmarks()` from `src/services/bookmarks.ts` (§6); the adapter itself was already isolated, this hook is just the render-time seam.
+- [x] Move quote loading, error, and loading state into a quote service or hook. `useQuote()` in `React/Hooks/hooks.ts`. `getQuote()` itself (§6) already collapses every failure into `null`, so there's one loading/empty state, not a separate error state - the hook adds a `cancelled` guard so a slower, stale fetch can't clobber a newer one.
+- [x] Move command-provider availability and execution behind a command service. Already true as of §6 (`src/services/commands.ts`); `App.tsx` only calls `executeEnabledPluginCommand()`, never touches a private registry itself.
+- [x] Move time ticking and formatting into a focused hook or pure utility. `useClock()` in `React/Hooks/hooks.ts`; `getTime()` (pure) untouched. Interval now keyed on `timeFormat` alone rather than the whole settings object - see §7 decisions log.
+- [x] Isolate icon adaptation in one component. `Icon` in `React/Components/App/components.tsx` - also stopped serializing to a string first, see below.
+- [x] Remove the context if the view can pass a small typed model and callbacks directly. `ObsidianAppContext.ts` deleted; `Views/ReactView.tsx` passes `this.app` into `<App />` as a plain prop. Flagged against the "file deletion is §8" rule and confirmed before doing it - see §7 decisions log.
+- [x] Keep only meaningful presentational boundaries, such as `SearchButton`, `RecentFiles`, `Bookmarks`, `Quote`, and `BackgroundSurface`. All five built in `React/Components/App/components.tsx` (as `QuoteDisplay`, to avoid clashing with the `Quote` type from `getQuote.ts`), each taking typed props/callbacks only - no Obsidian `App` reference below `App.tsx`.
+- [x] Avoid creating a component for every small text block. Time, greeting, and the quote's own content/author lines stay as plain markup in `App.tsx`/`QuoteDisplay` rather than becoming their own components.
+- [x] Replace `dangerouslySetInnerHTML` where practical; otherwise isolate and constrain it. Replaced outright, not just isolated: `getIcon()` returns a real `SVGElement`, so `Icon` now holds a ref and appends/clears that DOM node directly - no `XMLSerializer` round-trip, no HTML string, no `dangerouslySetInnerHTML` anywhere in the codebase.
+- [x] Ensure keyboard search behavior works with mobile and desktop input expectations. Unchanged from the working original: the container's `onKeyDown` still runs the inline search command on any bare alphanumeric key, `Ctrl`/`Alt` combinations excluded. Not a mobile-specific behavior to begin with (no on-screen keyboard `keydown` peculiarities were in scope here), so nothing needed changing.
+- [ ] Test loading, empty, error, and populated render states. **No test runner exists yet** - that's §9. Nothing to run these against until then.
+- [ ] Test view unmount, settings updates, timer cleanup, and background cleanup. Same blocker as above - deferred to §9.
 
 ## 8. Consolidate The File Structure
 
@@ -212,7 +212,7 @@ Entered this section with the build broken: removing this project's remaining `@
 - [ ] Fold the capitalization helper into the settings option-label code if it has no other meaningful consumer.
 - [ ] Keep modals separate only when their behavior warrants it; otherwise group related small modals.
 - [ ] Remove the context when it no longer provides a useful dependency boundary.
-- [ ] Remove the custom `Observable` now that `SettingsStore` has fully replaced it.
+- [x] Remove the custom `Observable` now that `SettingsStore` has fully replaced it.
 - [ ] Remove dead imports, unused fields, unused result properties, and `Function`-typed callbacks. **Partially done, incidentally.** The two unused modal `result` fields named explicitly in this line item (`ChooseImageSuggestModal`, `ChooseSearchProvider`) were already removed in §1 while chasing a `strictPropertyInitialization` error — found because a compiler flag flagged them as uninitialized, then confirmed via a repo-wide grep that `.result` was never read anywhere, so removed rather than initialized. The `Function`-typed callback part of this line is still fully open: `src/Utils/Observable.ts`'s `subscribers: Function[]` and the two matching `Function`-typed props in `src/modals/ConfirmModal.ts`/`CustomQuotesModel.ts` are untouched (these surfaced as `@typescript-eslint/no-unsafe-function-type` lint findings in §1 but were deliberately left for this section rather than pulled forward).
 - [ ] Keep `screenshots/` and release documentation unless there is a separate product decision to remove them.
 - [ ] Do not delete, rename, or lint-scope `updates.ts` as part of this work.

@@ -4,16 +4,16 @@ category:
   - changelog
 log-scope: general
 modified: 2026-08-30
-UUID: 6a026efa-4379-4a1f-b158-d50aed7bd53b
+UUID: c17fb945-cde7-4d48-aa28-b9ee1ffe5795
 commit-sha: 
-files-modified: 9
+files-modified: 6
 files-created: 2
 files-archived: 1
 tags:
   - tab-candy
 ---
 
-# Tab Candy Refactor, Part 6 — 2026-08-30
+# Tab Candy Refactor, Part 7 — 2026-08-30
 
 ## Overview
 
@@ -22,7 +22,7 @@ tags:
 | Date | 2026-08-30 |
 | Commit SHA | [fill in after commit] |
 | Files Added | 2 |
-| Files Modified | 9 |
+| Files Modified | 6 |
 | Files Archived | 1 |
 
 ## Changes
@@ -31,34 +31,39 @@ tags:
 - `REFACTOR docs/REFACTOR-DECISIONS.md`: [description]
 - `REFACTOR docs/REFACTOR-IMPLEMENTATION-CHECKLIST.md`: [description]
 - `React/Components/App/App.tsx`: [description]
-- `React/Utils/getQuote.ts`: [description]
-- `src/Settings/Settings.ts`: [description]
-- `src/modals/ChooseSearchProvider.ts`: [description]
-- `src/services/commands.ts`: [description]
-- `src/services/versionCheck.ts`: [description]
-- `ARCHIVE/CHANGELOG-2026-08-29-0477de2.md` *(renamed from `ARCHIVE/CHANGELOG-2026-08-29.md`)*: [description]
+- `Views/ReactView.tsx`: [description]
+- `src/services/bookmarks.ts`: [description]
+- `ARCHIVE/CHANGELOG-2026-08-30-f470e16.md` *(renamed from `ARCHIVE/CHANGELOG-2026-08-30.md`)*: [description]
 
 ### New Files Created
-- `src/Utils/withTimeout.ts`: [description]
-- `src/services/bookmarks.ts`: [description]
+- `React/Components/App/components.tsx`: [description]
+- `React/Hooks/hooks.ts`: [description]
 
 ### Files Removed / Archived
-- `React/Utils/getBookmarks.ts`: [description]
+- `React/Context/ObsidianAppContext.ts`: [description]
 
 
 <!-- archivist:auto-end -->
 ## Notes
 
-**Root cause of the broken build**: removing the last @ts-ignores exposed that app.commands, app.plugins, and app.internalPlugins aren't in the pinned obsidian@1.13.1 typings at all — that's exactly §6's territory (commands + bookmarks are the only private-API consumers left in the codebase).
-What changed:
-- **Commands** — `src/services/commands.ts` is now the only place touching `app.commands`/`app.plugins`. `ChooseSearchProvider.ts` no longer enumerates the command registry itself; it calls the adapter. Execution still shows a Notice and now can't throw uncaught.
-- **Bookmarks** — killed `React/Utils/getBookmarks.ts`, built `src/services/bookmarks.ts` as the sole internalPlugins touchpoint, pulling this forward from later in the implementation plan. Fully typed (discriminated union + guards, no more any), returns `[]` on any disabled/malformed/missing state. `getBookmarks()` now correctly returns `TFile[]` instead of the looser `TAbstractFile[]`, which fully closes the §1 typing gap instead of leaving the instanceof stopgap load-bearing.
-- **Network** — `versionCheck.ts` and `getQuote.ts` both wrapped in `try`/`catch`, `throw:false` + manual status checks, and a shared `withTimeout.ts`. Fixed a bug along the way: a failed version-check fetch used to read as "update available" instead of "unknown," and an empty custom-quotes list would've thrown.
+New files:
+- `React/Hooks/hooks.ts` — `useSettings`, `useClock`, `useQuote`, `useBackground`, `useRecentFiles`, `useBookmarks`
+- `React/Components/App/components.tsx` — `Icon`, `SearchButton`, `RecentFiles`, `Bookmarks`, `QuoteDisplay`, `BackgroundSurface`
 
-See [[REFACTOR-IMPLEMENTATION-CHECKLIST]] for details.
+Modified:
+- `React/Components/App/App.tsx` — gutted down to a composition root, just wires hooks to the new presentational components
+- `Views/ReactView.tsx` — passes `this.app` as a prop now instead of via context
+- `src/services/bookmarks.ts` — fixed `getBookmarks()`'s declared return type (`TAbstractFile[]` → `TFile[]`), which was blocking the new hook and was stale from §6
+- `REFACTOR docs/REFACTOR-DECISIONS.md` / `REFACTOR-IMPLEMENTATION-CHECKLIST.md`
+- The `Icon` component doesn't just isolate `dangerouslySetInnerHTML` anymore, it kills it outright — `getIcon()` hands back a real `SVGElement`, so `Icon` appends that DOM node directly via a ref instead of serializing it to a string first.
+
+Deleted:
+- `React/Context/ObsidianAppContext.ts`
+
+See [[REFACTOR-IMPLEMENTATION-CHECKLIST]] for full details
 
 **Commit Message**
-chore: refactor, part 6, commands, bookmarks, and network integrations
+chore: refactor, part 7, react restructure
 
 ---
 

@@ -959,3 +959,86 @@ states requires a real Obsidian runtime this sandbox doesn't have.
 `typecheck`/`build`/`lint` all pass against the new adapter, and each
 guard branch was traced by hand for the corresponding case, but that
 falls short of actually running it. Left unchecked rather than assumed.
+
+## §7 — React Restructure
+
+### `ObsidianAppContext.ts` deletion, flagged and confirmed before implementing
+
+Once data-fetching moves into hooks that take `app: App` as a parameter,
+and presentational components (`SearchButton`, `RecentFiles`, `Bookmarks`,
+`QuoteDisplay`, `BackgroundSurface`) take only typed props/callbacks, the
+composition root (`App.tsx`) becomes the only component that still needs
+the raw Obsidian `App` - so `ObsidianAppContext.ts` (`ObsidianContext`,
+`useObsidian`) stops having a real consumer. The checklist names removing
+it as in-scope for this section ("Remove the context if the view can pass
+a small typed model and callbacks directly"), but file deletion is
+otherwise reserved for §8. Same situation as §6's `getBookmarks.ts` -
+flagged explicitly before implementing, confirmed, deleted outright rather
+than left as a dead, unreferenced file. `Views/ReactView.tsx` now passes
+`this.app` into `<App />` as a plain prop instead of via context provider.
+
+### Hook and small-component file locations
+
+REFACTOR.md's target structure names `app/hooks.ts` and
+`app/components.tsx` under a `src/app/` directory that doesn't exist yet -
+creating it now would be doing §8's "move maintained source under a
+coherent `src/` structure" under this section's name. Landed on
+`React/Hooks/hooks.ts` and `React/Components/App/components.tsx` instead:
+same file names REFACTOR.md specifies, kept inside the existing `React/`
+tree so §8's later move is a directory relocation only, not a rename too.
+Icon serialization (`Icon`), `SearchButton`, `RecentFiles`, `Bookmarks`,
+`QuoteDisplay`, and `BackgroundSurface` all live in the one
+`components.tsx`, matching "small presentational pieces, if needed" rather
+than one directory per component - REFACTOR.md's own critique of the
+current layout is that one-file directories add navigation cost without
+useful boundaries.
+
+### Icon: `dangerouslySetInnerHTML` removed, not just isolated
+
+The checklist item is "replace ... where practical; otherwise isolate and
+constrain it." `getIcon()` returns a real `SVGElement`, so the previous
+`XMLSerializer` round-trip (element → string → `dangerouslySetInnerHTML`)
+was unnecessary rather than load-bearing: `Icon` now holds a ref and
+appends/clears the actual DOM node directly. No HTML string, and no
+`dangerouslySetInnerHTML`, anywhere in the codebase after this section.
+
+### Two narrower hook dependency arrays than the original effects had
+
+- **Clock**: the original timer effect's dependency array was
+  `[setTime, settings]` - the whole settings object, so *any* settings
+  change tore down and rebuilt the interval, not just a `timeFormat`
+  change. `useClock` now depends on `timeFormat` alone. Displayed output
+  is identical either way; only the internal teardown/rebuild frequency
+  changes.
+- **Quote**: `useQuote` adds a `cancelled` guard around the async
+  `getQuote()` call so a slower, stale fetch can't overwrite a newer one
+  if `quoteSource`/`customQuotes` change again before the first request
+  resolves. The original had no such guard.
+
+Both are incidental hardening surfaced by relocating the logic, not
+requested separately - noted here rather than silently folded in.
+
+### `useRecentFiles` and `useBookmarks`: matching, not improving, existing memoization
+
+`useRecentFiles` recomputes on every `App` render, same as the original -
+its `useMemo` was keyed on `allVaultFiles`, a fresh array literal on every
+call, so the memo never actually prevented a recompute. Rather than "fix"
+that into real memoization (a behavior change: recent files would stop
+picking up newly modified files without an explicit vault-event trigger,
+which is out of this section's scope), the hook just recomputes plainly
+each render, same effective behavior, without a fake memo pretending
+otherwise. `useBookmarks`, by contrast, had a *working* `useMemo` in the
+original (keyed on `[obsidian, settings]`, both stable references between
+actual settings updates) - preserved as a real `useMemo` for the same
+reason: it already only recomputed on genuine settings changes, not on
+every render.
+
+### `BackgroundSurface`: no `background-image` style when there's no background
+
+The original always set `style={{ backgroundImage: `url('${background}')` }}`,
+even for `BackgroundTheme.TRANSPARENT`, where `getBackground()` returns
+`null` - producing a literal `url('null')` in the DOM. `BackgroundSurface`
+now omits the `style` attribute entirely when `background` is falsy.
+Transparent themes already hide any background via the
+`tabcandy-root--transparent`/`--transparentWithShadows` classes, so this
+has no visible effect; it just stops writing an invalid CSS value.
