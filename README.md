@@ -10,7 +10,7 @@ A plugin for Obsidian.MD that creates a customizable new tab view with beautiful
 
 ## Features and customizations
 
-Tab Candy is the evolution of [Beautitab](https://github.com/andrewmcgivery/obsidian-beautitab) which has fallen into disrepair, as projects often do. Life fucking happens. Tab Candy was forked and has since taken on a life of its own. Beautitab was built to be very customizable; you could hide or show every element at your discretion. Tab Candy has migrated and overhauled the code, bringing it in alignment with the latest Obsidian API, made it viable on both Desktop and Mobile, and built in new functionality.
+Tab Candy is the evolution of [Beautitab](https://github.com/andrewmcgivery/obsidian-beautitab) which has fallen into disrepair, as projects often do. Life fucking happens. Tab Candy was forked and has since taken on a life of its own. Beautitab was built to be very customizable; you could hide or show every element at your discretion. Tab Candy has overhauled the code from the ground up, bringing it in alignment with the latest Obsidian API, made it viable on both Desktop and Mobile, and built in new functionality.
 
 ### Top left search
 

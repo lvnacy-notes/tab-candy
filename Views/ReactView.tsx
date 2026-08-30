@@ -1,4 +1,4 @@
-import { App, FileView, WorkspaceLeaf } from 'obsidian';
+import { ItemView, WorkspaceLeaf } from 'obsidian';
 import { Root, createRoot } from 'react-dom/client';
 import ReactApp from '../React/Components/App/App';
 import { ObsidianContext } from '../React/Context/ObsidianAppContext';
@@ -6,20 +6,16 @@ import SettingsStore from 'src/Settings/SettingsStore';
 
 export const TAB_CANDY_VIEW_TYPE = 'tabcandy-react-view';
 
-export class TabCandyView extends FileView {
+export class TabCandyView extends ItemView {
 	root: Root | null = null;
-	app: App;
 	settingsStore: SettingsStore;
 
 	constructor(
-		app: App,
 		settingsStore: SettingsStore,
 		leaf: WorkspaceLeaf
 	) {
 		super(leaf);
-		this.app = app;
 		this.settingsStore = settingsStore;
-		this.allowNoFile = true;
 	}
 
 	getViewType() {
@@ -35,6 +31,12 @@ export class TabCandyView extends FileView {
 	}
 
 	async onOpen() {
+		// Defensive: guards against a stray leftover React root if Obsidian
+		// ever calls onOpen() again without a matching onClose() in between
+		// (e.g. certain leaf-reuse paths), rather than assuming onOpen()
+		// only ever runs once per view instance.
+		this.contentEl.empty();
+
 		this.root = createRoot(this.contentEl);
 		this.root.render(
 			<ObsidianContext.Provider value={this.app}>
@@ -46,5 +48,6 @@ export class TabCandyView extends FileView {
 
 	async onClose() {
 		this.root?.unmount();
+		this.root = null;
 	}
 }

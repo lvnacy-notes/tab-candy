@@ -10,13 +10,10 @@ import { App, Notice } from 'obsidian';
  */
 export function executeEnabledPluginCommand(app: App, command: string): void {
 	const pluginID = command.split(':')[0];
-	//@ts-ignore
 	const { plugins } = app.plugins;
-	//@ts-ignore
 	const internalPlugins = app.internalPlugins.plugins;
 
 	if (plugins[pluginID] || internalPlugins[pluginID]?.enabled) {
-		//@ts-ignore
 		app.commands.executeCommandById(command);
 	} else {
 		new Notice(

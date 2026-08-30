@@ -17,7 +17,7 @@ treats a plugin id as an installation identity, anyone on the old
 accepted as a deliberate, one-time migration cost rather than something to
 work around with compatibility shims. No further action here.
 
-## Minimum supported Obsidian version — **0.15.0, unchanged**
+## Minimum supported Obsidian version — **superseded, see §5's revision below**
 
 Walking the APIs the refactor actually commits to using:
 
@@ -25,24 +25,26 @@ Walking the APIs the refactor actually commits to using:
   present since the earliest plugin API, far below any version under
   consideration.
 - `registerEvent`, `registerDomEvent`, `registerInterval`,
-  `workspace.getLeavesOfType`, `workspace.revealLeaf` — all long-standing,
-  pre-1.0 APIs.
+  `workspace.getLeavesOfType` — all long-standing, pre-1.0 APIs.
 - `vault.getFiles`, `vault.getAbstractFileByPath`, `vault.adapter.list`,
   `vault.adapter.readBinary`, `vault.readBinary` — public vault/adapter
   surface, also pre-1.0.
-- `requestUrl` — the newest API in the actual usage list, and it requires
-  API version **0.13.25**.
+- `requestUrl` — the newest API in the actual usage list at the time this
+  was written, requiring API version **0.13.25**.
 
-The binding constraint is `requestUrl` at 0.13.25, and the manifest already
-declares `0.15.0`, which clears that with room to spare. There's no API
-reason to move the floor in either direction, so it stays at `0.15.0`. No
-manifest edit needed for this reason alone; §10 will still touch
-`manifest.json`/`manifest-beta.json`/`versions.json` for the version bump
-that accompanies the actual release.
+The binding constraint was taken to be `requestUrl` at 0.13.25, and the
+manifest already declared `0.15.0`, which clears that with room to spare.
+**This entry was wrong about `workspace.revealLeaf`** — it's listed above
+as a "long-standing, pre-1.0 API," but it actually requires **1.7.2**.
+`revealLeaf` wasn't in use anywhere in the codebase yet when this decision
+was made, so the error had no effect until §5 introduced the first calls
+to it; §5's entry below is the actual, corrected floor decision. Leaving
+this entry in place rather than rewriting it, since it's a real mistake
+worth being visible about, not a stylistic artifact to clean up.
 
 If a later section pulls in something genuinely newer (e.g. a public
 bookmarks API if Obsidian ships one), that's the trigger to revisit this
-number — not before.
+number again.
 
 ## Node range — **`>=24` for development and CI, confirmed**
 
@@ -104,12 +106,14 @@ otherwise creates one, then calls `workspace.revealLeaf()`. That becomes
 the one and only supported way to *summon* Tab Candy on demand.
 
 Separately, keep the "replace new empty tabs automatically" behavior as an
-opt-in **setting**, defaulted **on** so today's out-of-the-box experience
-doesn't regress for existing users. The setting drives the same narrow
-activation path rather than a blanket "grab whatever the most-recent-leaf
-API hands back" check — the point isn't to remove the convenience, it's to
-stop treating uncontrolled event-driven leaf hijacking as the *only* entry
-point with no off switch and no reuse-awareness.
+opt-in **setting**, defaulted **on** — replacing new empty tabs is the
+plugin's whole point, so a fresh install should do that automatically
+without requiring the user to find and flip a toggle first. The setting
+drives the same narrow activation path rather than a blanket "grab
+whatever the most-recent-leaf API hands back" check — the point isn't to
+remove the convenience, it's to stop treating uncontrolled event-driven
+leaf hijacking as the *only* entry point with no off switch and no
+reuse-awareness.
 
 This is the one §0 call that most directly shapes §5's lifecycle work, so
 it's worth being blunt about the trade being made: a little more settings
@@ -672,3 +676,171 @@ remains, held for the end of the checklist as planned.
 a drop-in unit-test target once that exists. The `localBackgrounds`
 base64 question that was previously the other open item is now decided
 (see above); its implementation lives in §4, not §3.
+
+# §5 Decisions — Public Obsidian API And Lifecycle
+
+## `FileView` → `ItemView` — **done**
+
+`Views/ReactView.tsx` no longer extends `FileView`. Tab Candy isn't
+file-backed, so `allowNoFile = true` and an unused `file` field were
+working around a base class that doesn't fit — `ItemView` doesn't carry
+either concept. The constructor also no longer takes an explicit `app`
+parameter: `View`'s own constructor populates `this.app` from the `leaf`
+it's given, so threading the plugin's `this.app` through
+`registerView()`'s factory and back into the view's constructor was
+redundant. **Caveat, stated plainly:** this relies on standard,
+widely-documented Obsidian plugin behavior that isn't spelled out in
+`obsidian.d.ts`'s comments and hasn't been verified against a running
+Obsidian instance in this sandbox — worth a real smoke test before
+shipping, same as everything else in this section marked untestable here.
+
+`contentEl.empty()` is now called at the top of `onOpen()` before
+`createRoot()`, defensively, in case a future leaf-reuse path ever calls
+`onOpen()` again without a matching `onClose()` first. `onClose()` now
+also nulls out `this.root` after unmounting, so a stale reference can't
+be read after teardown.
+
+## Explicit activation vs. hijacking — **implemented per the §0 decision**
+
+`src/services/newTabHijack.ts` now has three things instead of one:
+
+- `setLeafToTabCandy(leaf)` — the one place that actually calls
+  `leaf.setViewState()` to turn a leaf into the Tab Candy view.
+- `activateView(app)` — the "Open new tab" command's implementation.
+  Checks `workspace.getLeavesOfType()` first and reveals an existing Tab
+  Candy leaf if one's already open; only creates a new leaf
+  (`workspace.getLeaf(true)`) as a fallback.
+- `registerNewTabHijack(app, settingsStore, registerEvent)` — the
+  opt-in, default-on `replaceEmptyTabsWithTabCandy` setting's watcher.
+  Registered the same way `registerBackgroundVaultWatchers()` is
+  (`registerEvent` passed in, not called directly), for consistency.
+
+**Deliberate scope call:** the hijack watcher does *not* route through
+`activateView()`'s "reuse an existing leaf" check. It keeps today's exact
+leaf-selection behavior (`getMostRecentLeaf()` + check for an `'empty'`
+view type) and only reuses the low-level `setLeafToTabCandy()` helper.
+Making it fully reuse-aware like `activateView()` would mean a newly
+opened empty tab gets left empty (with a different, already-open Tab
+Candy tab revealed instead) whenever one exists elsewhere — which
+undermines the setting's actual job of filling every new empty tab.
+Flagging this explicitly since the original §0 entry's "layered on the
+same helper" phrasing could be read either way; this implementation reads
+it as "shares the mechanism," not "shares the full reuse logic."
+
+New setting: `replaceEmptyTabsWithTabCandy` (boolean, default `true`),
+added to `TabCandySettings`/`DEFAULT_SETTINGS`, validated in
+`normalizeSettings()`, and exposed as a toggle under a new "New tab
+behavior" heading at the top of the settings tab (ahead of "Background
+settings" — it's foundational plugin behavior, not a cosmetic option).
+
+New command: `open-tab-candy` / "Open new tab", registered in
+`onload()`, calling `activateView()`. Named to avoid repeating the plugin
+name (Obsidian already prefixes commands with it in the UI) — the
+Obsidian ESLint plugin catches this class of mistake directly
+(`obsidianmd/commands/no-plugin-name-in-command-name`).
+
+## `minAppVersion` bumped to 1.7.2 — **decided**
+
+`activateView()`/`setLeafToTabCandy()` need `workspace.getLeaf()` (0.16.0)
+and `workspace.revealLeaf()` (1.7.2); `getMostRecentLeaf()` (already used
+in `App.tsx` and now also the hijack watcher) needs 0.15.4. No
+version-safe, non-deprecated alternative exists for any of these — every
+pre-0.15.4 option in this API family (`activeLeaf`, `setActiveLeaf`'s old
+signature) is itself `@deprecated`. Rather than keep trading one lint
+category for another, or shipping current-idiom code against a floor it
+doesn't actually clear, **`minAppVersion` is bumped to `1.7.2`** — the
+highest floor actually in use, no higher. Updated in `manifest.json` and
+`manifest-beta.json`. All four `no-unsupported-api` findings from this
+section (the three new ones plus the pre-existing `getMostRecentLeaf` one
+in `App.tsx`) are resolved by this, not worked around.
+
+This also caught and corrected an error in §0's original minAppVersion
+analysis, which had incorrectly listed `revealLeaf` as a "long-standing,
+pre-1.0 API" — see that entry, left in place with a correction note
+rather than silently rewritten.
+
+**Also found and fixed while touching version files:** `versions.json`
+still contained Beautitab's entire release history (`1.0.0` through
+`1.6.1`, all mapped to `0.15.0`) — Session Guideline #1 territory, a
+new plugin id carrying forward a prior plugin's version-compat table.
+Reset to a single entry, `{"2.0.0": "1.7.2"}`, matching the current
+`manifest.json` version and the new floor.
+
+## Long-lived DOM listeners / `registerDomEvent()` — **audited, no change needed in this section's files**
+
+`main.ts`'s dev-only live-reload `EventSource` listener is the only
+`addEventListener()` call in a plugin-lifecycle file (`main.ts`,
+`Views/ReactView.tsx`) — everything else living in those two files is
+either JSX (React owns its own event binding and cleanup) or was already
+converted to `registerEvent()`. That `EventSource` listener runs at
+module load, outside any `Plugin`/`Component` instance, and only exists
+in dev builds (dead-code-eliminated from production via
+`esbuild.config.js`'s `process.env.NODE_ENV` define + tree-shaking —
+confirmed absent from `dist/main.js`). Restructuring it to go through
+`registerDomEvent()` would mean moving it inside `onload()`, which is
+more dev-tooling surgery than a lifecycle-correctness fix; left as-is.
+
+The other `addEventListener()` calls in the codebase
+(`src/modals/CustomQuotesModel.ts`, `src/Settings/Settings.ts`) sit
+inside `Modal`/`PluginSettingTab` render functions that call
+`contentEl.empty()` / `containerEl.empty()` on every redraw — the
+listeners get torn down with the elements they're attached to, not
+leaked. They're real `Component` subclasses and could still be moved to
+`registerDomEvent()` as a matter of house style, but that's Modal/Settings
+UI code, not the view-and-lifecycle scope this section covers. Not
+touched here.
+
+## Plugin-owned intervals / `registerInterval()` — **audited, deferred to §7**
+
+The only `setInterval()` in the codebase is `React/Components/App/App.tsx`'s
+clock tick, cleaned up correctly via a matching `clearInterval()` in its
+`useEffect` cleanup function — not leaked, just not registered through
+`Component.registerInterval()`. It can't be, without threading the
+`TabCandyView` instance itself through `ObsidianContext` (currently only
+`app` is provided) so a functional component could call
+`this.registerInterval()` on it — that's `App.tsx` architecture, which is
+§7's "move time ticking and formatting into a focused hook or pure
+utility" item, not this section's. No plugin/component-level interval
+exists outside React's own lifecycle, which is what this checklist item
+is really guarding against.
+
+## Global view-instance assumptions — **addressed via the activation rework above**
+
+No literal singleton (a held reference to "the" view instance, a
+module-level `let activeView`, etc.) existed anywhere in the codebase —
+grepped for one and found none. The actual global-assumption problem was
+architectural: `hijackEmptyLeafForNewTab()` treated
+`workspace.getMostRecentLeaf()` as a stand-in for "the" new-tab slot,
+unconditionally, on every `layout-change` event, with no setting, no
+reuse-awareness, and no path that didn't go through blind event-driven
+guessing. The activation rework above replaces that with an explicit,
+narrowly-scoped `activateView()` for on-demand summoning and a
+settings-gated watcher for the automatic case — see that entry for the
+full reasoning.
+
+## Private/internal API audit — **classification**
+
+A full sweep (`eslint-plugin-obsidianmd`'s `no-unsupported-api` /
+`no-deprecated` rules, plus a manual grep for `internalPlugins`,
+`app.commands`, `app.plugins`, `emulateMobile`, `isMobile`) turned up:
+
+- **Resolved in this section:** the dev-only `app.emulateMobile()` /
+  `app.isMobile` block in `main.ts` and its four `@ts-ignore` comments —
+  deleted outright per REFACTOR.md's explicit instruction to remove it
+  from the shipped entry point.
+- **New finding, open per the entry above:** `getLeaf()`/`revealLeaf()`
+  vs. the 0.15.0 floor, introduced by this section's own activation work.
+- **Pre-existing, out of this section's scope, belongs to §6:**
+  `src/services/commands.ts` (`app.plugins`, `app.internalPlugins`,
+  2 `@ts-ignore`), `src/modals/ChooseSearchProvider.ts`
+  (`app.commands.commands` enumeration, 1 `@ts-ignore`),
+  `React/Utils/getBookmarks.ts` (`app.internalPlugins.plugins.bookmarks`,
+  2 `@ts-ignore`) — all three are exactly what §6's "Bookmarks" and
+  "Commands" checklist items already describe isolating/guarding, not
+  re-litigated here.
+- **Resolved in this section (indirectly):** `App.tsx`'s two
+  `getMostRecentLeaf()` calls (recent file / bookmark click-to-open) no
+  longer violate the floor either, now that `minAppVersion` is 1.7.2 —
+  not touched directly, just no longer a version-floor problem. Its one
+  `@ts-ignore` (line 163, a JSX `style` typing issue) is unrelated to any
+  Obsidian API and is left alone — React-restructure territory, §7.

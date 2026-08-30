@@ -43,6 +43,12 @@ export interface TabCandySettings {
 	// install with no data.json at all - see CURRENT_SETTINGS_VERSION in
 	// normalizeSettings.ts for what bumping it means.
 	settingsVersion: number;
+	// Drives src/services/newTabHijack.ts's workspace `layout-change`
+	// watcher: when true, opening a new empty tab automatically shows Tab
+	// Candy. When false, Tab Candy only opens via the "Open Tab Candy"
+	// command (see activateView() in the same file). Defaulted on so this
+	// matches the plugin's out-of-the-box behavior.
+	replaceEmptyTabsWithTabCandy: boolean;
 	backgroundTheme: BackgroundTheme;
 	customBackground: string;
 	// Vault-relative folder path (e.g. "Assets/Tab Candy") synced via
@@ -85,6 +91,7 @@ export const DEFAULT_SETTINGS: TabCandySettings = {
 	// going through normalizeSettings() (there shouldn't be any, but a
 	// wrong number here should never be load-bearing).
 	settingsVersion: 0,
+	replaceEmptyTabsWithTabCandy: true,
 	backgroundTheme: BackgroundTheme.SEASONS_AND_HOLIDAYS,
 	customBackground: '',
 	backgroundsFolder: '',
@@ -147,6 +154,27 @@ export class TabCandySettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 
 		containerEl.empty();
+
+		/****************************************
+		 * New tab behavior settings
+		 ***************************************/
+		new Setting(containerEl).setHeading().setName(`New tab behavior`);
+
+		new Setting(containerEl)
+			.setName('Replace new empty tabs')
+			.setDesc(
+				`Automatically show Tab Candy whenever an empty new tab is opened. Turn this off to only open Tab Candy on demand, via the "Open Tab Candy" command.`
+			)
+			.addToggle((component) => {
+				component.setValue(
+					this.plugin.settings.replaceEmptyTabsWithTabCandy
+				);
+				component.onChange((value) => {
+					this.updateSettings({
+						replaceEmptyTabsWithTabCandy: value,
+					});
+				});
+			});
 
 		/****************************************
 		 * Background settings

@@ -15,7 +15,7 @@ import {
 	syncBackgroundsFolder,
 } from 'src/services/backgrounds';
 import { checkForPluginUpdates } from 'src/services/versionCheck';
-import { hijackEmptyLeafForNewTab } from 'src/services/newTabHijack';
+import { activateView, registerNewTabHijack } from 'src/services/newTabHijack';
 
 /**
  * This allows a "live-reload" of Obsidian when developing the plugin.
@@ -77,34 +77,25 @@ export default class TabCandyPlugin extends Plugin {
 
 		this.registerView(
 			TAB_CANDY_VIEW_TYPE,
-			(leaf) =>
-				new TabCandyView(this.app, this.settingsStore, leaf)
+			(leaf) => new TabCandyView(this.settingsStore, leaf)
 		);
 
 		this.addSettingTab(new TabCandySettingTab(this.app, this));
 
-		this.registerEvent(
-			this.app.workspace.on('layout-change', () =>
-				hijackEmptyLeafForNewTab(this.app)
-			)
+		this.addCommand({
+			id: 'open-tab-candy',
+			name: 'Open new tab',
+			callback: () => {
+				void activateView(this.app);
+			},
+		});
+
+		registerNewTabHijack(
+			this.app,
+			this.settingsStore,
+			(eventRef) => this.registerEvent(eventRef)
 		);
-
-		if (process.env.NODE_ENV === 'development') {
-			// @ts-ignore
-			if (process.env.EMULATE_MOBILE && !this.app.isMobile) {
-				// @ts-ignore
-				this.app.emulateMobile(true);
-			}
-
-			// @ts-ignore
-			if (!process.env.EMULATE_MOBILE && this.app.isMobile) {
-				// @ts-ignore
-				this.app.emulateMobile(false);
-			}
-		}
 	}
-
-	onunload() {}
 
 	/**
 	 * Load data from disk (data.json in the plugin folder), normalize it

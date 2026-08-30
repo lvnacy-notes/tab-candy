@@ -57,7 +57,6 @@ export const getBookmarks = (
 	app: App | undefined,
 	settings: TabCandySettings
 ): TAbstractFile[] => {
-	// @ts-ignore
 	let bookmarks = app?.internalPlugins.plugins.bookmarks.instance.items;
 
 	if (settings.bookmarkSource === BOOKMARK_SOURCE.GROUP) {
@@ -101,7 +100,6 @@ const flattenBookmarkGroups = (items: any[], parentPath = null) => {
  * @param app
  */
 export const getBookmarkGroups = (app: App) => {
-	// @ts-ignore
 	const bookmarks = app?.internalPlugins.plugins.bookmarks.instance.items;
 
 	return flattenBookmarkGroups(bookmarks);

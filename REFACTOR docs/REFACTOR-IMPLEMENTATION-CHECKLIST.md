@@ -1,6 +1,6 @@
 # Tab Candy Implementation Checklist
 
-Use this checklist alongside [REFACTOR.md](REFACTOR.md). It is ordered by dependency: make the decisions that affect compatibility first, then establish a clean toolchain, migrate data and runtime behavior, restructure the UI, and validate release readiness.
+Use this checklist alongside [REFACTOR.md](REFACTOR.md). It is ordered by dependency: make the decisions that affect compatibility first, then establish a clean toolchain, rebuild data and runtime behavior, restructure the UI, and validate release readiness.
 
 `updates.ts` is comparison material and is intentionally excluded from all rename, cleanup, lint, deletion, and validation work below.
 
@@ -8,12 +8,14 @@ Use this checklist alongside [REFACTOR.md](REFACTOR.md). It is ordered by depend
 
 1. Tab Candy is a new plugin. New Obsidian id, `tabcandy`, new everything. Anything "legacy" must go.
 2. Comments are not historical markers. There is no "old," "used to," "legacy," etc. Comments should describe what the thing does, not what it used to do, how it changed, or what it replaced.
+3. Absolutely NO `@ts-ignore` declarations.
+4. `main.ts` is strictly for plugin lifecycle methods. EVERYTHING else is abstracted to `src/services` or to where otherwise appropriate.
 
 ## 0. Decisions And Baseline
 
 Full rationale for every item below is in [REFACTOR-DECISIONS.md](REFACTOR-DECISIONS.md); current-state capture is in [BASELINE.md](BASELINE.md).
 
-- [x] Confirm the final Obsidian plugin id policy. The plugin id is now `tabcandy`; this is a deliberate installation migration.
+- [x] Confirm the final Obsidian plugin id policy. The plugin id is now `tabcandy` — a new community-plugin identity with no installation-level connection to Beautitab; Obsidian will not recognize it as a related or upgraded plugin.
 - [x] Record the supported minimum Obsidian version for the new release based on the APIs actually used. **Decision: `0.15.0`, unchanged** — the newest API in use (`requestUrl`) only requires 0.13.25, and 0.15.0 already clears that.
 - [x] Confirm the supported Node range as `>=24` for development and CI. **Confirmed.**
 - [x] Decide whether bookmarks remain a feature. If retained, accept that they require a guarded private-API adapter until a supported public API exists. **Decision: retain, behind a guarded adapter** that returns an empty list rather than throwing when Bookmarks is disabled/missing/malformed.
@@ -27,10 +29,10 @@ Full rationale for every item below is in [REFACTOR-DECISIONS.md](REFACTOR-DECIS
 
 - [x] Add `engines.node` to `package.json` with the agreed Node 24+ range. `>=24`.
 - [x] Upgrade `@types/node` to match Node 24. `^24.9.2`.
-- [x] Upgrade TypeScript, esbuild, React typings, and ESLint packages as a coordinated update. TypeScript held at **5.9.3**, not the newly-GA'd TypeScript 7 — `typescript-eslint`'s peer range is `<6.1.0` and a GitHub issue requesting TS7 support was closed "not planned" (blocked on TS7's stable programmatic API, expected in 7.1). **Decision: split setup.** `typescript` 5.9.3 stays the source of truth for `npm run typecheck` and for ESLint's type-aware rules; `@typescript/native-preview` (the `tsgo` binary) added as a second, non-gating `npm run typecheck:fast` script — not wired into `build` or CI. Revisit swapping to TS7 for real once `typescript-eslint`/`eslint-plugin-obsidianmd` support it. esbuild bumped 0.19.8 → 0.28.2; forced a coordinated bump of `esbuild-sass-plugin` 2.16.0 → 3.7.0, which changed its sass engine dependency from bundled pure-JS `sass` to a peer dependency on `sass-embedded` (native binary, added as an explicit devDependency) — a real environment-size/platform-binary tradeoff, not just a version bump. React/`@types/react`/`@types/react-dom` held at latest **18.x** (18.3.x), not bumped to 19, since only typings were in scope here, not a React major migration.
+- [x] Upgrade TypeScript, esbuild, React typings, and ESLint packages as a coordinated update. TypeScript held at **5.9.3**, not the newly-GA'd TypeScript 7 — `typescript-eslint`'s peer range is `<6.1.0` and a GitHub issue requesting TS7 support was closed "not planned" (blocked on TS7's stable programmatic API, expected in 7.1). **Decision: split setup.** `typescript` 5.9.3 stays the source of truth for `npm run typecheck` and for ESLint's type-aware rules; `@typescript/native-preview` (the `tsgo` binary) added as a second, non-gating `npm run typecheck:fast` script — not wired into `build` or CI. Revisit swapping to TS7 for real once `typescript-eslint`/`eslint-plugin-obsidianmd` support it. esbuild bumped 0.19.8 → 0.28.2; forced a coordinated bump of `esbuild-sass-plugin` 2.16.0 → 3.7.0, which changed its sass engine dependency from bundled pure-JS `sass` to a peer dependency on `sass-embedded` (native binary, added as an explicit devDependency) — a real environment-size/platform-binary tradeoff, not just a version bump. React/`@types/react`/`@types/react-dom` held at latest **18.x** (18.3.x), not bumped to 19, since only typings were in scope here, not a React major-version upgrade.
 - [x] Add the flat-config dependencies imported by `eslint.config.js`: `eslint`, `@stylistic/eslint-plugin`, and `eslint-plugin-obsidianmd` at compatible versions. None of these were actually installed before this pass — `eslint.config.js` imported packages that weren't in `package.json` at all, so `npm run lint` could not have run previously. Also required, not anticipated at the outset: `typescript-eslint` (unified meta-package), `@eslint/js`, and `@eslint/json` — all are peer dependencies of `eslint-plugin-obsidianmd` that its own `package.json` declares but its README doesn't mention installing. `@eslint/json` had to be pinned to the **exact** version obsidianmd's peer range specifies (`0.14.0`), and `@eslint/js` pinned to `^9.30.1` rather than its own latest (`10.0.1`) — obsidianmd 0.4.2 hasn't updated its peer range for ESLint 10 yet, even though ESLint 10 itself is used at the top level without issue.
 - [x] Update the `obsidian` package to the current API declarations used for implementation. Was pinned to the literal floating string `"latest"` (no version pin at all — nondeterministic across installs/CI runs); now pinned to `^1.13.1`.
-- [x] Remove the direct `electron` dependency after runtime Electron usage is gone. **Sequencing note:** originally scoped to happen after §4's vault-adapter rebuild. Pulled forward and done now instead, as an explicit stopgap decision, because `npm audit` flagged 2 high-severity CVEs against the pinned `electron@25.8.1`. The dependency and its `fs`/`path`/`electron` runtime imports are fully removed from `main.ts` and `src/Settings/Settings.ts`, but the three features they backed are **disabled, not migrated**: OS-folder background sync (`syncLocalBackgroundsFromDirectory()`, deleted), the "Browse" folder picker, and the "Add local image" file picker. A settings-tab notice now tells anyone with a pre-existing `localBackgroundsDirectory` value that the feature is temporarily unavailable and points them at "Add vault image" in the meantime. **§4 still needs to build the real vault-relative replacement from scratch** — this was a removal, not a head start on the migration. `npm audit` now reports 0 vulnerabilities.
+- [x] Remove the direct `electron` dependency after runtime Electron usage is gone. **Sequencing note:** originally scoped to happen after §4's vault-adapter rebuild. Pulled forward and done now instead, as an explicit stopgap decision, because `npm audit` flagged 2 high-severity CVEs against the pinned `electron@25.8.1`. The dependency and its `fs`/`path`/`electron` runtime imports are fully removed from `main.ts` and `src/Settings/Settings.ts`, but the three features they backed are **disabled, not carried forward**: OS-folder background sync (`syncLocalBackgroundsFromDirectory()`, deleted), the "Browse" folder picker, and the "Add local image" file picker. (An intermediate settings-tab notice pointing at the old directory field was briefly added here, then deleted outright in §4 once it was recognized as a legacy accommodation the Session Guidelines rule out — see §4's entries for the final state: no notice, no reference to the removed field anywhere.) **§4 still needs to build the real vault-relative replacement from scratch** — this was a removal, not a head start on rebuilding those features. `npm audit` now reports 0 vulnerabilities.
 - [x] Add package scripts for `typecheck`, `lint`, and tests. `typecheck` and `lint` added (plus `typecheck:fast` for the tsgo split, see above). **Test script still open** — no test runner has been chosen or wired up yet; that's §9.
 - [x] Make `build` run typecheck and the production bundle in sequence. `build` runs `pnpm run typecheck && node esbuild.config.js production` (updated from `npm run` when pnpm was adopted for real, later in this section; `esbuild.config.mjs` → `.js` rename happened later still — see the target/output-path entry below).
 - [x] Update `eslint.config.js` to lint `.ts`, `.tsx`, and intentionally selected build files. `.tsx` was missing from the files glob entirely — React components were never actually being linted.
@@ -93,7 +95,7 @@ These were discovered incidentally while doing toolchain work above, not sought 
 - [x] Replace the untyped `Observable`. `SettingsStore` replaces it everywhere it was referenced (`main.ts`, `Views/ReactView.tsx`, `React/Components/App/App.tsx`). `src/Utils/Observable.ts` itself is now dead code with zero remaining references — left in place rather than deleted, since file deletion is §8's job per REFACTOR.md's own "Remove the custom `Observable` after the settings store migration is complete," which is listed under §8, not here. It's now genuinely actionable there.
 - [x] Ensure unsubscribe removes the subscriber rather than retaining it. Confirmed the bug was real: `Observable.onChange()`'s returned unsubscribe filtered subscribers with `value === callback` — keeping the match instead of removing it, the exact opposite of what an unsubscribe should do. `SettingsStore.subscribe()` uses a `Set` and `.delete()`, which can't get that backwards.
 - [x] Batch or debounce text-setting saves and avoid rebuilding the entire settings screen on each keystroke. The three free-text fields (`customBackground`, `greetingText`, `backgroundsFolder`) now go through a 500ms-debounced update via a `debounce()` utility (`src/Utils/debounce.ts`) bound once in the `TabCandySettingTab` constructor, so it survives `display()` redraws instead of being rebuilt (and its pending timer lost) on every one. None of the three ever called `this.display()` on keystroke to begin with, so the "avoid rebuilding the screen" half was already true; the debounce fixes the "a write on every keystroke" half.
-- [ ] Test fresh defaults, partial settings, malformed settings, legacy settings, and repeated migrations. **Blocked on §9**, same as §1's "Test script still open" note — no test runner is wired up yet, so there's nowhere to put these tests today. `normalizeSettings()` was written as a pure function specifically so this is a drop-in unit-test target once §9 picks a runner.
+- [ ] Test fresh defaults, partial settings, and malformed settings. **Blocked on §9**, same as §1's "Test script still open" note — no test runner is wired up yet, so there's nowhere to put these tests today. `normalizeSettings()` was written as a pure function specifically so this is a drop-in unit-test target once §9 picks a runner.
 
 
 ## 4. Vault-Based Backgrounds And Mobile Support
@@ -133,22 +135,22 @@ REFACTOR.md's original sketch for background loading was `adapter.readBinary(fil
 
 ## 5. Public Obsidian API And Lifecycle
 
-- [ ] Change the custom view from `FileView` to `ItemView` because Tab Candy is not file-backed.
-- [ ] Keep one stable exported view type constant.
-- [ ] Implement current `ItemView` lifecycle methods with current typings.
-- [ ] Clear the view content element before mounting React.
-- [ ] Unmount the React root in `onClose()`.
-- [ ] Remove global view-instance assumptions.
-- [ ] Use `workspace.getLeavesOfType()` when locating existing Tab Candy views.
-- [ ] Add or refine an activation helper that reuses an existing leaf, creates one if necessary, and reveals it.
-- [ ] Register Obsidian events with `registerEvent()`.
-- [ ] Register long-lived DOM listeners with `registerDomEvent()`.
-- [ ] Register plugin-owned intervals with `registerInterval()`.
-- [ ] Remove the empty `onunload()` if no explicit cleanup remains.
-- [ ] Remove production mobile-emulation code and its `@ts-ignore` usage.
+- [x] Change the custom view from `FileView` to `ItemView` because Tab Candy is not file-backed. See §5 decisions log.
+- [x] Keep one stable exported view type constant. Already true — `TAB_CANDY_VIEW_TYPE` in `Views/ReactView.tsx`, one definition, used everywhere it's referenced.
+- [x] Implement current `ItemView` lifecycle methods with current typings. `getViewType()`, `getDisplayText()`, `getIcon()`, `onOpen()`, `onClose()` all present with `ItemView`'s current signatures.
+- [x] Clear the view content element before mounting React. `contentEl.empty()` added to the top of `onOpen()`.
+- [x] Unmount the React root in `onClose()`. Already present; now also nulls `this.root` after.
+- [x] Remove global view-instance assumptions. See §5 decisions log — no literal singleton existed; the real issue was `getMostRecentLeaf()`-driven blanket hijacking, addressed by the activation rework below.
+- [x] Use `workspace.getLeavesOfType()` when locating existing Tab Candy views. Implemented in `activateView()`.
+- [x] Add or refine an activation helper that reuses an existing leaf, creates one if necessary, and reveals it. `activateView()` in `src/services/newTabHijack.ts`, backing a new "Open new tab" command. Required bumping `minAppVersion` from `0.15.0` to `1.7.2` (see §5 decisions log) — no version-safe, non-deprecated way to reveal/create a leaf exists below that.
+- [x] Register Obsidian events with `registerEvent()`. Verified — every `app.vault.on(...)`/`app.workspace.on(...)` call in the codebase is wrapped by a caller-supplied `registerEvent`.
+- [x] Register long-lived DOM listeners with `registerDomEvent()`. Audited — see §5 decisions log. No change needed in this section's files (`main.ts`, `Views/ReactView.tsx`); the only candidate is dev-only tooling outside any Plugin/Component instance.
+- [x] Register plugin-owned intervals with `registerInterval()`. Audited — see §5 decisions log. No plugin/component-level interval exists; the one interval in the codebase lives in React (`App.tsx`) and is correctly cleaned up via `useEffect`. Deferred to §7 as a hook-extraction concern, not a lifecycle bug.
+- [x] Remove the empty `onunload()` if no explicit cleanup remains. Removed from `main.ts` — no cleanup was ever added to it.
+- [x] Remove production mobile-emulation code and its `@ts-ignore` usage. Deleted outright from `main.ts`, per REFACTOR.md's explicit instruction. Confirmed absent from `dist/main.js`.
 - [x] Replace enum-narrowed `Setting` callbacks with string-to-enum validation at the boundary. **Confirmed real and fixed for the 4 genuine cases** (background theme, time format, bookmark source, quote source dropdowns in `src/Settings/Settings.ts`) via a boundary-validation type guard — found while chasing an unrelated `tsgo`/`tsc` strictness discrepancy in §1, not sought out separately. See §1's "Findings surfaced" note for the full detail, including a 5th, differently-shaped bug (a mistyped, not just unvalidated, `bookmarkGroup` callback) found in the same sweep.
-- [ ] Remove avoidable `@ts-ignore` directives.
-- [ ] Run a search for private/internal API usage and classify every remaining match.
+- [x] Remove avoidable `@ts-ignore` directives. Within this section's files: zero remain (the mobile-emulation block was the only one, removed above). The rest of the codebase's `@ts-ignore`s belong to §6 (bookmarks/commands) — see the private/internal API audit below.
+- [x] Run a search for private/internal API usage and classify every remaining match. Full classification recorded in the §5 decisions log's "Private/internal API audit" entry.
 
 ## 6. Commands, Bookmarks, And Network Integrations
 
@@ -203,7 +205,7 @@ REFACTOR.md's original sketch for background loading was `adapter.readBinary(fil
 - [ ] Fold the capitalization helper into the settings option-label code if it has no other meaningful consumer.
 - [ ] Keep modals separate only when their behavior warrants it; otherwise group related small modals.
 - [ ] Remove the context when it no longer provides a useful dependency boundary.
-- [ ] Remove the custom `Observable` after the settings store migration is complete.
+- [ ] Remove the custom `Observable` now that `SettingsStore` has fully replaced it.
 - [ ] Remove dead imports, unused fields, unused result properties, and `Function`-typed callbacks. **Partially done, incidentally.** The two unused modal `result` fields named explicitly in this line item (`ChooseImageSuggestModal`, `ChooseSearchProvider`) were already removed in §1 while chasing a `strictPropertyInitialization` error — found because a compiler flag flagged them as uninitialized, then confirmed via a repo-wide grep that `.result` was never read anywhere, so removed rather than initialized. The `Function`-typed callback part of this line is still fully open: `src/Utils/Observable.ts`'s `subscribers: Function[]` and the two matching `Function`-typed props in `src/modals/ConfirmModal.ts`/`CustomQuotesModel.ts` are untouched (these surfaced as `@typescript-eslint/no-unsafe-function-type` lint findings in §1 but were deliberately left for this section rather than pulled forward).
 - [ ] Keep `screenshots/` and release documentation unless there is a separate product decision to remove them.
 - [ ] Do not delete, rename, or lint-scope `updates.ts` as part of this work.
@@ -215,7 +217,7 @@ REFACTOR.md's original sketch for background loading was `adapter.readBinary(fil
 ## 9. Tests And CI
 
 - [ ] Add unit tests for settings defaults and normalization.
-- [ ] Add unit tests for settings migration and legacy data handling.
+- [ ] Add unit tests for `normalizeSettings()`: defaults, malformed/partial data, and enum validation.
 - [ ] Add unit tests for enum/provider validation.
 - [ ] Add unit tests for image-extension and MIME mapping.
 - [ ] Add fake-adapter tests for `list()` and `readBinary()`.
@@ -240,7 +242,6 @@ REFACTOR.md's original sketch for background loading was `adapter.readBinary(fil
 - [ ] Update README setup instructions for Node 24+.
 - [ ] Update README background instructions to describe vault folders and mobile support.
 - [ ] Remove claims that local computer folders are supported if that feature is removed.
-- [ ] Document migration behavior for existing users.
 - [ ] Document desktop and mobile verification results.
 - [ ] Review screenshots and alt text for old branding.
 - [ ] Check the community plugin listing requirements before publishing.
@@ -255,7 +256,7 @@ REFACTOR.md's original sketch for background loading was `adapter.readBinary(fil
 - [ ] Search maintained runtime files for `fs`, `path`, `electron`, and Node-only globals.
 - [ ] Search maintained runtime files for `internalPlugins`, private command registries, and `@ts-ignore`.
 - [ ] Verify `updates.ts` was not modified by the refactor.
-- [ ] Verify no image bytes are stored in plugin settings after migration.
+- [ ] Verify no image bytes are stored in plugin settings.
 - [ ] Verify vault images work on desktop and mobile.
 - [ ] Verify plugin reload and view recreation do not leak timers, subscriptions, or object URLs.
 - [ ] Verify missing optional integrations fail gracefully.
@@ -273,7 +274,7 @@ Complete sections 0, 1, and 2. The renamed project should type-check, lint, buil
 
 ### Milestone 2: Mobile-Safe Data Layer
 
-Complete sections 3 and 4. Vault-relative backgrounds, settings migration, and binary loading should work without Node or Electron runtime APIs.
+Complete sections 3 and 4. Vault-relative backgrounds, settings normalization, and binary loading should work without Node or Electron runtime APIs.
 
 ### Milestone 3: API-Safe Runtime
 
@@ -285,4 +286,4 @@ Complete sections 7 and 8. React should render typed data through meaningful bou
 
 ### Milestone 5: Release Candidate
 
-Complete sections 9, 10, and 11. Automated checks, manual desktop/mobile validation, migration testing, and release documentation should all be complete.
+Complete sections 9, 10, and 11. Automated checks, manual desktop/mobile validation, and release documentation should all be complete.

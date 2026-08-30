@@ -25,7 +25,6 @@ class ChooseSearchProvider extends FuzzySuggestModal<SearchProvider> {
 	}
 
 	getItems(): SearchProvider[] {
-		//@ts-ignore
 		const allCommands = Object.entries(this.app.commands.commands).filter(
 			(pluginId) => SEARCH_PROVIDER.includes(pluginId[0].split(':')[0])
 		);

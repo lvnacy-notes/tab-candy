@@ -4,16 +4,16 @@ category:
   - changelog
 log-scope: general
 modified: 2026-08-29
-UUID: 9cf22d58-478e-44c7-9dac-abaf2e6c9e54
+UUID: fe100761-38ff-41df-94cc-87f6e2276673
 commit-sha: 
-files-modified: 10
-files-created: 4
+files-modified: 17
+files-created: 0
 files-archived: 0
 tags:
   - tab-candy
 ---
 
-# Tab Candy Refactor, Part 4 — 2026-08-29
+# Tab Candy Refactor, Part 5 — 2026-08-29
 
 ## Overview
 
@@ -21,29 +21,33 @@ tags:
 |-------|-------|
 | Date | 2026-08-29 |
 | Commit SHA | [fill in after commit] |
-| Files Added | 4 |
-| Files Modified | 10 |
+| Files Added | 0 |
+| Files Modified | 17 |
 | Files Archived | 0 |
 
 ## Changes
 
 ### Files Modified
+- `README.md`: [description]
+- `REFACTOR docs/REFACTOR-DECISIONS.md`: [description]
 - `REFACTOR docs/REFACTOR-IMPLEMENTATION-CHECKLIST.md`: [description]
+- `REFACTOR docs/REFACTOR.md`: [description]
 - `React/Components/App/App.tsx`: [description]
+- `React/Utils/getBookmarks.ts`: [description]
 - `Views/ReactView.tsx`: [description]
 - `main.ts`: [description]
+- `manifest-beta.json`: [description]
+- `manifest.json`: [description]
 - `src/Settings/Settings.ts`: [description]
 - `src/Settings/normalizeSettings.ts`: [description]
-- `src/Types/Images.ts`: [description]
-- `src/modals/ChooseImageSuggestModal.ts`: [description]
-- `src/services/backgrounds.ts`: [description]
-- `ARCHIVE/CHANGELOG-2026-08-28-fc07338.md` *(renamed from `ARCHIVE/CHANGELOG-2026-08-28.md`)*: [description]
-
-### New Files Created
-- `src/modals/ChooseBackgroundFolderModal.ts`: [description]
+- `src/modals/ChooseSearchProvider.ts`: [description]
 - `src/services/commands.ts`: [description]
 - `src/services/newTabHijack.ts`: [description]
-- `src/services/versionCheck.ts`: [description]
+- `versions.json`: [description]
+- `ARCHIVE/CHANGELOG-2026-08-29-bb9159a.md` *(renamed from `ARCHIVE/CHANGELOG-2026-08-29.md`)*: [description]
+
+### New Files Created
+- No new files
 
 ### Files Removed / Archived
 - No files archived
@@ -52,7 +56,7 @@ tags:
 <!-- archivist:auto-end -->
 ## Notes
 
-chore: refactor, phase 4, vault-based backgrounds and mobile support
+chore: refactor, part 5, public obsidian api and lifecycle
 
 ---
 

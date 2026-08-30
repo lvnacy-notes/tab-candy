@@ -30,9 +30,8 @@ The old name appears in maintained project files and should be raised before imp
 Recommended policy:
 
 - Use `tab-candy` for repository/package/release directory names where a hyphen is valid.
-- Use `tabcandy` for the immutable Obsidian plugin id if the existing community-plugin identity must be preserved. Confirm the intended id before release: changing an Obsidian plugin id is an installation migration, not merely a display-name change.
+- Use `tabcandy` for the immutable Obsidian plugin id.
 - Use `TabCandyPlugin`, `TabCandySettings`, `TabCandyView`, and `tabcandy-*` or `tabcandy-*` CSS consistently.
-- Do not retain compatibility aliases longer than the settings migration requires.
 - Treat `updates.ts` as intentional comparison material. It is excluded from deletion, rename, lint, and architecture recommendations unless its role changes later.
 
 ### Runtime portability problems
@@ -51,8 +50,6 @@ Replace the OS path setting and embedded image array with vault-relative referen
 backgroundsFolder: string;       // e.g. "Assets/Tab Candy"
 backgroundFiles: string[];       // vault-relative paths, not image bytes
 ```
-
-A future migration may retain the old fields temporarily so existing settings can be detected and explained, but new code should not read or write OS paths or base64 image payloads.
 
 ### Public vault adapter flow
 
@@ -78,16 +75,6 @@ Use the public vault adapter API documented by Obsidian:
 - Handle missing, renamed, unreadable, and deleted vault files without failing the whole view.
 - Avoid a full settings redraw for every field change; update the setting and save once per committed interaction.
 - Consider listening for vault `create`, `modify`, `delete`, and `rename` events and invalidating the background cache instead of requiring a reload.
-
-### Migration
-
-On first load after the refactor:
-
-- If an old OS directory is configured, do not attempt to read it on mobile or desktop.
-- Explain that the folder must be copied into the vault and selected again.
-- Do not silently import potentially large local files into `data.json`.
-- Keep a one-time migration marker so the notice is not repeated.
-- Preserve ordinary display settings and quote data through a versioned settings normalizer.
 
 ## Current Obsidian API Review
 
@@ -193,7 +180,7 @@ src/
     bookmarks.ts          # Optional guarded integration
     commands.ts           # Provider command policy and execution
     quotes.ts             # Quote source orchestration
-    settings.ts           # Defaults, migration, normalization, persistence
+    settings.ts           # Defaults, normalization, persistence
   settings.ts             # PluginSettingTab and setting controls
   modals.ts               # Small related modals, unless a modal becomes large
   types.ts                # Shared settings/domain types and enums
@@ -265,7 +252,7 @@ Recommended changes:
 - Review `target: "es2018"` against the minimum Obsidian desktop/mobile WebView support. Node 24 does not mean the plugin can emit Node-only or desktop-only syntax; choose the browser target based on Obsidian compatibility.
 - Replace JSON import assertions if the selected Node/toolchain version requires import attributes, or avoid importing package JSON by passing the version through the build environment.
 - Remove the hard-coded Windows development output path. Make the development vault/plugin output configurable through an environment variable or a documented local config.
-- Keep `main.ts` and `styles.scss` as the only build entry points unless the build is intentionally migrated to a `src/` entry convention.
+- Keep `main.ts` and `styles.scss` as the only build entry points unless the build intentionally moves to a `src/` entry convention.
 - Keep `dist/` and generated `main.js` out of source control unless the release process explicitly requires them.
 
 ## ESLint and TypeScript Configuration
@@ -295,7 +282,7 @@ Recommended TypeScript cleanup:
 
 ## Settings and Data Model Hardening
 
-- Add `settingsVersion` and a pure migration/normalization function.
+- Add `settingsVersion` and a pure normalization function.
 - Validate enum values and provider objects loaded from `data.json`.
 - Clone or replace arrays during updates so React sees stable, intentional state transitions.
 - Debounce or batch saves for text inputs; avoid saving and rebuilding the entire settings screen on every keystroke.
@@ -308,7 +295,7 @@ Recommended TypeScript cleanup:
 Before implementation is considered complete:
 
 - Run `npm run typecheck` and `npm run lint` in CI.
-- Add unit tests for settings defaults, migration, enum validation, image-extension/MIME mapping, bookmark flattening, and quote fallback behavior.
+- Add unit tests for settings defaults, enum validation, image-extension/MIME mapping, bookmark flattening, and quote fallback behavior.
 - Add service tests with a fake vault adapter covering `list`, `readBinary`, missing folders, nested folders, unsupported files, deleted files, and binary conversion cleanup.
 - Add React tests for loading, empty, error, and populated states; settings updates; keyboard search; and view unmount cleanup.
 - Manually test current Obsidian desktop and mobile builds with a vault-synced image folder.

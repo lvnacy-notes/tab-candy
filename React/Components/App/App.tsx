@@ -160,7 +160,6 @@ const App = ({ settingsStore }: { settingsStore: SettingsStore }) => {
 				'tabcandy-root--transparentWithShadows'
 		}
 			`}
-			// @ts-ignore
 			style={{
 				backgroundImage: `url('${background}')`,
 			}}
