@@ -12,7 +12,7 @@ import getBackground from '../../Utils/getBackground';
 import { getBackgroundResourcePath } from '../../../src/services/backgrounds';
 import { executeEnabledPluginCommand } from '../../../src/services/commands';
 import getTimeOfDayGreeting from '../../Utils/getTimeOfDayGreeting';
-import { getBookmarks } from '../../Utils/getBookmarks';
+import { getBookmarks } from '../../../src/services/bookmarks';
 import { TabCandySettings } from '../../../src/Settings/Settings';
 import getQuote from '../../Utils/getQuote';
 import { BackgroundTheme } from '../../../src/Types/Enums';

@@ -844,3 +844,118 @@ A full sweep (`eslint-plugin-obsidianmd`'s `no-unsupported-api` /
   not touched directly, just no longer a version-floor problem. Its one
   `@ts-ignore` (line 163, a JSX `style` typing issue) is unrelated to any
   Obsidian API and is left alone — React-restructure territory, §7.
+---
+
+## §6 — Commands, Bookmarks, and Network Integrations
+
+This settles the items in §6 of
+[REFACTOR-IMPLEMENTATION-CHECKLIST.md](REFACTOR-IMPLEMENTATION-CHECKLIST.md),
+the three files flagged above as pending §6 work
+(`src/services/commands.ts`, `src/modals/ChooseSearchProvider.ts`,
+`React/Utils/getBookmarks.ts`), and the network-request items. Entered
+with the build already broken: removing this project's remaining
+`@ts-ignore` directives ahead of this section (per the Session
+Guidelines) surfaced that `app.commands`, `app.plugins`, and
+`app.internalPlugins` aren't part of the pinned `obsidian@1.13.1`
+typings at all, so every one of those three files failed `tsc` before
+any §6-specific work began.
+
+### Private-registry isolation — one adapter per registry family
+
+Rather than casting `App` to a private shape at each of the three
+call sites, every read of `app.commands`, `app.plugins`, or
+`app.internalPlugins` anywhere in the codebase now goes through exactly
+one of two files:
+
+- `src/services/commands.ts` — `app.commands` and `app.plugins`
+  (command execution/enumeration, plugin-enablement checks).
+- `src/services/bookmarks.ts` — `app.internalPlugins` (Bookmarks core
+  plugin only).
+
+Both define a narrow local interface (e.g. `AppWithPrivateRegistries`,
+`AppWithInternalPlugins`) documented as private/unpublished, cast once,
+and every function built on top returns an empty/`null`/`false` result
+rather than throwing if the registry is missing or doesn't match the
+expected shape at runtime. No other file in the codebase touches these
+three properties — confirmed by grep after the fact, not just by intent.
+
+### Bookmarks adapter — relocated to `src/services/bookmarks.ts`, old file deleted
+
+Flagged before implementing, since it's a file deletion/rename and the
+Session Guidelines otherwise reserve those for §8: `React/Utils/getBookmarks.ts`
+is gone. Its logic was rebuilt in a new `src/services/bookmarks.ts`,
+matching REFACTOR.md's target file tree (which already names
+`services/bookmarks.ts` as this adapter's home) and the precedent set in
+§4, where `backgrounds.ts`, `commands.ts`, and `versionCheck.ts` were
+already pulled out of `main.ts`/inline code into `src/services/`.
+Explicit instruction: build the new file and delete the old one in the
+same pass, no re-exporting shim left behind, no tech debt carried
+forward for a later session to clean up. The two consumers
+(`src/Settings/Settings.ts`'s `getBookmarkGroups` import,
+`React/Components/App/App.tsx`'s `getBookmarks` import) were updated to
+point at the new location in the same commit.
+
+`getQuote.ts` was deliberately **not** given the same treatment, even
+though REFACTOR.md's target tree also names a `services/quotes.ts`. §7's
+own checklist already lists "move quote loading, error, and loading
+state into a quote service or hook" as that section's job — moving the
+file now would just be doing §7's relocation under §6's name. `getQuote.ts`
+was fixed in place at `React/Utils/getQuote.ts`.
+
+### Bookmark/command typing — closed in full, not staged
+
+`getBookmarks.ts`'s known-but-deferred typing gap (flagged in §1/§5:
+`any[]` throughout `flattenBookmarks`, `getBookmarksByGroupName`,
+`flattenBookmarkGroups`, plus a return type of `TAbstractFile[]` that a
+render site in `App.tsx` was trusting as `TFile[]` without narrowing) is
+now fully resolved rather than left as the `instanceof TFile` stopgap
+from §1. `BookmarkItem`/`BookmarkFileItem`/`BookmarkGroupItem` are a
+proper discriminated union with type guards; `flattenBookmarks` only
+ever collects `'file'`-typed entries, so `getBookmarks()` now legitimately
+returns `TFile[]`, not the wider `TAbstractFile[]` it used to claim. The
+§1 render-side guard in `App.tsx` is now redundant-but-harmless rather
+than load-bearing — not removed, since touching `App.tsx`'s render logic
+is §7 territory, but the type system rules out the original bug on its
+own now regardless of whether that guard is still there.
+
+### Network request hardening — manual timeout, since the API has none
+
+`requestUrl()`'s typings (`RequestUrlParam`) expose no `AbortSignal` and
+no timeout option — there is nothing "supported by the current API" to
+call directly for cancellation. Added `src/Utils/withTimeout.ts`, a
+generic `Promise.race`-based wrapper (8s), shared by `versionCheck.ts`
+and `getQuote.ts`. Both call sites also pass `throw: false` and check
+`status` manually rather than relying on `requestUrl`'s default
+throw-on-4xx/5xx behavior, and wrap the whole call in `try`/`catch` for
+outright network failures. This is a deliberate choice of "best available
+mechanism" over "the API's own facility," recorded here because it's not
+obvious from the diff alone that no better option existed to skip.
+
+Fixed as part of the same work: version-check's own comparison had a
+latent false-positive where a failed fetch (network error, rate limit)
+left a version variable `undefined`, and `localVersion !== undefined`
+would then read as "an update is available" - the exact opposite of the
+"predictable fallback" behavior this section's quote-failure item names.
+Both network calls now only report/act on an actual, successfully
+fetched value.
+
+### switcher:open default — not verified, left unchecked
+
+The checklist asks this be kept as the default "only after verifying it
+through the current API/runtime behavior." There's no real Obsidian
+runtime available in this sandbox to confirm the core Quick Switcher
+still registers under the `switcher` internal-plugin id and `switcher:open`
+command id - same limitation as §4's device-specific test items. Nothing
+in this session touched `DEFAULT_SEARCH_PROVIDER`; the id is long-stable
+and widely depended on across the community-plugin ecosystem, but that's
+not the same as verifying it this session, so the checklist item is left
+unchecked rather than assumed done.
+
+### Bookmark integration tests — not runnable, left unchecked
+
+Same limitation: exercising the Bookmarks core plugin in each of
+all-bookmarks/group-bookmarks/nested-groups/empty-group/missing-plugin
+states requires a real Obsidian runtime this sandbox doesn't have.
+`typecheck`/`build`/`lint` all pass against the new adapter, and each
+guard branch was traced by hand for the corresponding case, but that
+falls short of actually running it. Left unchecked rather than assumed.

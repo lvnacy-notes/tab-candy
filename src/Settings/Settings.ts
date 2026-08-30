@@ -1,4 +1,4 @@
-import { getBookmarkGroups } from '../../React/Utils/getBookmarks';
+import { getBookmarkGroups } from '../services/bookmarks';
 import TabCandyPlugin from '../../main';
 import {
 	App,

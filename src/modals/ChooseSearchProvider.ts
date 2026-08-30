@@ -4,6 +4,7 @@ import {
 	SEARCH_PROVIDER,
 } from '../../src/Settings/Settings';
 import { SearchProvider } from '../Types/Interfaces';
+import { listSearchProviderCommands } from '../services/commands';
 
 /**
  * This class is used to create a modal to choose a search provider from a list of available search providers
@@ -25,17 +26,7 @@ class ChooseSearchProvider extends FuzzySuggestModal<SearchProvider> {
 	}
 
 	getItems(): SearchProvider[] {
-		const allCommands = Object.entries(this.app.commands.commands).filter(
-			(pluginId) => SEARCH_PROVIDER.includes(pluginId[0].split(':')[0])
-		);
-		const searchProviders: SearchProvider[] = [];
-		allCommands.forEach((command) => {
-			searchProviders.push({
-				command: command[0],
-				display: (command[1] as any).name,
-			});
-		});
-		return searchProviders;
+		return listSearchProviderCommands(this.app, SEARCH_PROVIDER);
 	}
 
 	getItemText(item: SearchProvider): string {
