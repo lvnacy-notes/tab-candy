@@ -1,12 +1,14 @@
 import {
 	BOOKMARK_SOURCE,
 	BackgroundTheme,
+	CustomQuote,
 	QUOTE_SOURCE,
+	SearchProvider,
 	TIME_FORMAT,
-} from '../Types/Enums';
-import { CustomQuote, SearchProvider } from '../Types/Interfaces';
-import isEnumValue from '../Utils/isEnumValue';
-import { DEFAULT_SETTINGS, TabCandySettings } from './Settings';
+	TabCandySettings,
+} from '../types';
+import isEnumValue from '../utils/isEnumValue';
+import { DEFAULT_SETTINGS } from './defaultSettings';
 
 /**
  * Bumped whenever normalizeSettings()'s handling of a field changes in a

@@ -6,8 +6,8 @@
  * enum's type. Boundary validation instead of an unchecked cast, per the
  * refactor's settings-hardening plan.
  *
- * Shared by src/Settings/Settings.ts (live dropdown callbacks) and
- * src/Settings/normalizeSettings.ts (load-time validation) so both
+ * Shared by src/settings/SettingsTab.ts (live dropdown callbacks) and
+ * src/settings/normalizeSettings.ts (load-time validation) so both
  * boundaries enforce the same rule with one implementation.
  */
 export default function isEnumValue<T extends Record<string, string>>(

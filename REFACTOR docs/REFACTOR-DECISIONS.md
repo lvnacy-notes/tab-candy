@@ -1042,3 +1042,132 @@ now omits the `style` attribute entirely when `background` is falsy.
 Transparent themes already hide any background via the
 `tabcandy-root--transparent`/`--transparentWithShadows` classes, so this
 has no visible effect; it just stops writing an invalid CSS value.
+
+## §8 — Consolidate The File Structure
+
+### `types.ts`: went beyond `Enums.ts` + `Interfaces.ts`, per explicit direction
+
+The checklist item only named combining `Enums.ts` and `Interfaces.ts`.
+Lvnatic asked for more: every type in the codebase — including
+`TabCandySettings` (previously declared inline in `Settings.ts`, mixed
+with that file's class and default-value exports) and `Quote` (previously
+declared inline in `getQuote.ts`) — now lives in one `src/types.ts`, on
+the stated principle that types should have "a single point of origin"
+even when a type is conceptually tied to one module. Kept as a flat file
+rather than a `types/` directory with a barrel export: the combined
+surface lands around 100 lines, well short of what would justify the
+extra indirection, and Lvnatic's phrasing ("if necessary, create a
+`types/` directory") left that call open. Flagged explicitly rather than
+picking silently.
+
+One dead type surfaced during the consolidation and was cut rather than
+carried forward: `Image` in the old `ChooseImageSuggestModal.ts` had zero
+consumers anywhere in the codebase (confirmed via repo-wide grep before
+deleting). `BACKGROUND_IMAGE_EXTENSIONS` did **not** move into
+`types.ts` despite living in the old `Types/Images.ts` — it's a runtime
+constant, not a type, so grouping it with actual types would've been
+following the old folder's name instead of what the rule is actually for.
+It now lives at `src/utils/imageExtensions.ts`.
+
+### Naming: PascalCase for components after all, camelCase elsewhere
+
+The originally stated rule ("camelCase unless it exports a class") was
+applied literally in an initial pass, which would have meant `App.tsx` →
+`app.tsx` despite `App` being a function component, not a class. Lvnatic
+corrected this once the tension was flagged: components get PascalCase
+filenames matching normal React convention (`App.tsx` stayed `App.tsx`),
+classes get PascalCase regardless of whether they're a component
+(`Views/ReactView.tsx`, which exports the `TabCandyView` class, became
+`src/TabCandyView.tsx`), and everything else — hooks, services, utility
+functions, non-class settings modules — stays camelCase. `main.ts` is a
+deliberate exception to all of this: it exports the `TabCandyPlugin`
+class but keeps its lowercase name and repo-root location, since that's
+an Obsidian/esbuild entry-point convention, not a normal "class file."
+
+### `Settings.ts` split: a class file can't also hold non-class exports
+
+The old `Settings.ts` mixed `TabCandySettingTab` (a class) with
+`TabCandySettings` (an interface, now in `types.ts`), `DEFAULT_SETTINGS`,
+`DEFAULT_SEARCH_PROVIDER`, and `SEARCH_PROVIDER` (all plain values) in one
+file — a direct conflict with the one-class-per-file rule once file
+identity was actually being enforced rather than inherited from history.
+Split into `src/settings/SettingsTab.ts` (the class, PascalCase) and
+`src/settings/defaultSettings.ts` (the values, camelCase). No behavior
+change; this is a pure code-motion split.
+
+### Import strategy: relative imports everywhere, no alias
+
+Real fork surfaced while auditing the codebase for this section: it
+wasn't just `"main"` vs `"./main"` as the checklist's original note
+implied, but a genuine split between files using bare specifiers (e.g.
+`'src/Types/Enums'`) that only resolved via `tsconfig.json`'s blunt
+`paths: { "*": ["./*"] }` wildcard (itself a forced side effect of `tsgo`
+rejecting `baseUrl` in §1, not a chosen alias strategy), and files using
+real relative imports, some quite deep (`'../../../src/Settings/
+SettingsStore'`). Flagged before any files moved, since moving first would
+have meant re-deriving both styles' new paths instead of picking one.
+Lvnatic chose relative imports everywhere, no alias. Every import in the
+codebase now follows that rule; the wildcard `paths` entry serves no
+remaining purpose but wasn't removed from `tsconfig.json` as part of this
+section — that's `tsconfig.json` surface area outside this section's
+"file structure" scope, worth a look in §9's type-system pass instead.
+
+### `manifest-beta.json` deleted — BRAT no longer needs it
+
+Investigated before wiring anything, since Lvnatic's original ask
+("wire it up for real BRAT beta releases") assumed the file still does
+something for modern BRAT installs. It doesn't: since BRAT v1.1.0, BRAT
+uses GitHub releases as the source of truth for plugin installations,
+fetching `manifest.json` directly from release assets rather than reading
+a root-level `manifest-beta.json`. That file is documented as retained
+"for backwards compatibility" only. Flagged this before implementing
+anything, since the technical reality contradicted the premise of the
+option chosen. Lvnatic's call: delete `manifest-beta.json` outright rather
+than keep it as an inert duplicate, and track the real modern-BRAT
+mechanism (a GitHub Actions release workflow publishing tagged pre-
+releases with `main.js`/`manifest.json`/`styles.css` as release assets) as
+new CI scope rather than bolting it onto this section. That work is now
+`§10`'s BRAT workflow items, added when the implementation checklist was
+renumbered to make room for the new `§9` (see below).
+
+### Checklist renumbered: new §9 inserted for type-system hardening
+
+Old `§9` (Tests And CI) → `§10`, old `§10` (Release And Documentation) →
+`§11`, old `§11` (Final Audit And Sign-Off) → `§12`. New `§9` (Type System
+Hardening And Full Cleanup) inserted at Lvnatic's explicit request: a
+dedicated pass to eliminate every remaining `any`/`unknown`, review every
+`as` assertion, and clear every remaining lint/typecheck finding —
+including the `no-floating-promises`/`no-deprecated`/
+`no-duplicate-enum-values`/`no-unsafe-enum-comparison` findings originally
+left for triage-only under old `§9` — before testing and CI infrastructure
+work begins, so that section only has to troubleshoot the test suite and
+workflows themselves. All cross-references to the renumbered sections
+throughout the checklist (in §1, §3, §7, and the Suggested Milestones)
+were updated to match.
+
+### `Function`-typed callbacks and their neighboring `any`s, fully closed out
+
+`ConfirmModal.ts`'s `_onConfirm: Function` and `CustomQuotesModel.ts`'s
+`_onSave: Function` — both named explicitly in this section's checklist
+item and left open since §1 — are now `() => void` and
+`(customQuotes: CustomQuote[]) => void` respectively. While in
+`CustomQuotesModel.ts` for that fix, found and fixed two more `any`-typed
+DOM change-event handlers and one implicit-`any` `JSON.parse()` deep-clone
+result in the same file — same class of issue, surfaced by the same lint
+rule family, not separately tracked anywhere in the checklist. Fixed
+alongside rather than deferred to §9, since leaving known-bad typing in a
+file already open for a directly related fix would have been pointless
+busywork for a future session.
+
+### Time utilities: partial consolidation, not total
+
+"Combine tiny time utilities if doing so improves discoverability" named
+no specific files. `getTime.ts` and `getTimeOfDayGreeting.ts` merged into
+one `time.ts` — both trivially small, both serve the clock/greeting
+display, both consumed together. `getEasterDate.ts` and `isWithinXDays.ts`
+stayed separate despite being similarly small: they serve the seasonal-
+background date-arithmetic feature, an unrelated concern. Merging all four
+into one file just because they're all small would have traded one
+navigation-cost problem for a mixed-concerns problem — the opposite of
+what this checklist item is for.
+

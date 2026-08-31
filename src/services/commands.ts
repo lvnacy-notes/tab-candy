@@ -1,5 +1,5 @@
 import { App, Notice } from 'obsidian';
-import { SearchProvider } from '../Types/Interfaces';
+import { SearchProvider } from '../types';
 
 /**
  * The private, unpublished runtime shape of `App` that backs command

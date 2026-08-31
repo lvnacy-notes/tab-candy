@@ -1,9 +1,9 @@
-import { TIME_FORMAT } from 'src/Types/Enums';
+import { TIME_FORMAT } from '../../types';
 
 /**
  * Returns the current time in a 00:00 format, either 12-hour or 24-hour
  */
-const getTime = (timeFormat: TIME_FORMAT) => {
+export const getTime = (timeFormat: TIME_FORMAT) => {
 	const today = new Date();
 	let hours;
 	if (timeFormat === TIME_FORMAT.TWELVE_HOUR) {
@@ -22,4 +22,18 @@ const getTime = (timeFormat: TIME_FORMAT) => {
 	return `${hours}:${minutes}`;
 };
 
-export default getTime;
+/**
+ * Depending on the time of the day, returns a greeting like "Good morning"
+ * @returns
+ */
+export const getTimeOfDayGreeting = () => {
+	const hours = new Date().getHours();
+
+	if (hours >= 18 || hours < 5) {
+		return 'Good evening';
+	} else if (hours >= 12) {
+		return 'Good afternoon';
+	} else {
+		return 'Good morning';
+	}
+};

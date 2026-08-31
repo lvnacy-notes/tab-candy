@@ -4,10 +4,10 @@ import {
 	useRef
 } from 'react';
 import { App as ObsidianApp, TFile } from 'obsidian';
-import SettingsStore from '../../../src/Settings/SettingsStore';
-import { executeEnabledPluginCommand } from '../../../src/services/commands';
-import { BackgroundTheme } from '../../../src/Types/Enums';
-import getTimeOfDayGreeting from '../../Utils/getTimeOfDayGreeting';
+import SettingsStore from '../settings/SettingsStore';
+import { executeEnabledPluginCommand } from '../services/commands';
+import { BackgroundTheme } from '../types';
+import { getTimeOfDayGreeting } from './utils/time';
 import {
 	useBackground,
 	useBookmarks,
@@ -15,7 +15,7 @@ import {
 	useQuote,
 	useRecentFiles,
 	useSettings,
-} from '../../Hooks/hooks';
+} from './hooks';
 import {
 	BackgroundSurface,
 	Bookmarks,

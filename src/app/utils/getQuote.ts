@@ -1,14 +1,8 @@
 import { requestUrl } from 'obsidian';
-import { QUOTE_SOURCE } from 'src/Types/Enums';
-import { CustomQuote } from 'src/Types/Interfaces';
-import withTimeout from 'src/Utils/withTimeout';
+import { CustomQuote, QUOTE_SOURCE, Quote } from '../../types';
+import withTimeout from '../../utils/withTimeout';
 
 const REQUEST_TIMEOUT_MS = 8000;
-
-export interface Quote {
-	content: string;
-	author: string;
-}
 
 /**
  * Fetches a random quote from the Quoteable API. Returns `null` rather

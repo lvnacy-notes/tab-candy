@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { App, TFile } from 'obsidian';
-import SettingsStore from '../../src/Settings/SettingsStore';
-import { TabCandySettings } from '../../src/Settings/Settings';
-import { getBackgroundResourcePath } from '../../src/services/backgrounds';
-import { getBookmarks } from '../../src/services/bookmarks';
-import getBackground from '../Utils/getBackground';
-import getQuote, { Quote } from '../Utils/getQuote';
-import getTime from '../Utils/getTime';
+import SettingsStore from '../settings/SettingsStore';
+import { Quote, TabCandySettings } from '../types';
+import { getBackgroundResourcePath } from '../services/backgrounds';
+import { getBookmarks } from '../services/bookmarks';
+import getBackground from './utils/getBackground';
+import getQuote from './utils/getQuote';
+import { getTime } from './utils/time';
 
 /**
  * Subscribes to a SettingsStore and keeps a piece of React state in sync

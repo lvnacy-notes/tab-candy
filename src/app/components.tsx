@@ -1,6 +1,6 @@
 import { KeyboardEvent, ReactNode, RefObject, useEffect, useRef } from 'react';
 import { TFile, getIcon } from 'obsidian';
-import { Quote } from '../../Utils/getQuote';
+import { Quote } from '../types';
 
 /**
  * Renders an Obsidian icon by name. `getIcon()` returns a real

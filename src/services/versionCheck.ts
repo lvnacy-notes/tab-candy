@@ -1,5 +1,5 @@
 import { Notice, requestUrl } from 'obsidian';
-import withTimeout from '../Utils/withTimeout';
+import withTimeout from '../utils/withTimeout';
 
 const REQUEST_TIMEOUT_MS = 8000;
 

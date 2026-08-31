@@ -2,20 +2,18 @@ import { Plugin } from 'obsidian';
 import {
 	TabCandyView,
 	TAB_CANDY_VIEW_TYPE
-} from './Views/ReactView';
-import SettingsStore from 'src/Settings/SettingsStore';
-import {
-	TabCandySettingTab,
-	TabCandySettings,
-} from 'src/Settings/Settings';
-import { normalizeSettings } from 'src/Settings/normalizeSettings';
+} from './src/TabCandyView';
+import SettingsStore from './src/settings/SettingsStore';
+import TabCandySettingTab from './src/settings/SettingsTab';
+import { TabCandySettings } from './src/types';
+import { normalizeSettings } from './src/settings/normalizeSettings';
 import {
 	pruneMissingManualBackgroundFiles,
 	registerBackgroundVaultWatchers,
 	syncBackgroundsFolder,
-} from 'src/services/backgrounds';
-import { checkForPluginUpdates } from 'src/services/versionCheck';
-import { activateView, registerNewTabHijack } from 'src/services/newTabHijack';
+} from './src/services/backgrounds';
+import { checkForPluginUpdates } from './src/services/versionCheck';
+import { activateView, registerNewTabHijack } from './src/services/newTabHijack';
 
 /**
  * This allows a "live-reload" of Obsidian when developing the plugin.
@@ -40,8 +38,8 @@ export default class TabCandyPlugin extends Plugin {
 	// getter here (TS2611: property/accessor kind mismatch). Instead this
 	// stays a plain field, kept in sync by subscribing to settingsStore in
 	// onload() below - purely a read convenience so the many pre-existing
-	// `this.plugin.settings.X` reads throughout src/Settings/Settings.ts
-	// and elsewhere didn't all need rewriting to `this.plugin.settingsStore.
+	// `this.plugin.settings.X` reads throughout the settings tab and
+	// elsewhere didn't all need rewriting to `this.plugin.settingsStore.
 	// get().X`. Writes must go through settingsStore.update(), never by
 	// assigning to this field directly.
 	settings!: TabCandySettings;

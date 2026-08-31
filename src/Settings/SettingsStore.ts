@@ -1,10 +1,10 @@
-import { TabCandySettings } from './Settings';
+import { TabCandySettings } from '../types';
 
 type Subscriber = (settings: TabCandySettings) => void;
 
 /**
  * Typed, narrow settings store: get/update/subscribe and persistence only,
- * replacing src/Utils/Observable.ts's untyped `any`-based implementation.
+ * replacing the old untyped `any`-based Observable implementation.
  *
  * Also fixes a real bug in Observable.onChange's returned unsubscribe
  * function: it filtered subscribers with `value === callback` (keeping
@@ -37,7 +37,7 @@ export default class SettingsStore {
 	 * Merge a partial update into the current settings, persist the result,
 	 * and notify subscribers - replacing the old repeated "mutate settings
 	 * in place, notify the observable, save, redraw" block that appeared
-	 * at every setting in src/Settings/Settings.ts.
+	 * at every setting in the settings tab.
 	 *
 	 * Always replaces (never mutates) any array/object fields present in
 	 * the patch, so subscribers relying on reference equality (e.g. React)

@@ -5,9 +5,9 @@ import {
 	TFile,
 	normalizePath
 } from 'obsidian';
-import { BACKGROUND_IMAGE_EXTENSIONS } from '../Types/Images';
-import SettingsStore from '../Settings/SettingsStore';
-import debounce from '../Utils/debounce';
+import { BACKGROUND_IMAGE_EXTENSIONS } from '../utils/imageExtensions';
+import SettingsStore from '../settings/SettingsStore';
+import debounce from '../utils/debounce';
 
 /**
  * Non-recursive discovery of background images inside a vault-relative

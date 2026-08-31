@@ -4,16 +4,16 @@ category:
   - changelog
 log-scope: general
 modified: 2026-08-30
-UUID: c17fb945-cde7-4d48-aa28-b9ee1ffe5795
+UUID: 6c0bf57b-6346-4e37-a223-fe9df38c8179
 commit-sha: 
-files-modified: 6
-files-created: 2
-files-archived: 1
+files-modified: 31
+files-created: 4
+files-archived: 6
 tags:
   - tab-candy
 ---
 
-# Tab Candy Refactor, Part 7 — 2026-08-30
+# Tab Candy Refactor, Part 8 — 2026-08-30
 
 ## Overview
 
@@ -21,51 +21,70 @@ tags:
 |-------|-------|
 | Date | 2026-08-30 |
 | Commit SHA | [fill in after commit] |
-| Files Added | 2 |
-| Files Modified | 6 |
-| Files Archived | 1 |
+| Files Added | 4 |
+| Files Modified | 31 |
+| Files Archived | 6 |
 
 ## Changes
 
 ### Files Modified
 - `REFACTOR docs/REFACTOR-DECISIONS.md`: [description]
 - `REFACTOR docs/REFACTOR-IMPLEMENTATION-CHECKLIST.md`: [description]
-- `React/Components/App/App.tsx`: [description]
-- `Views/ReactView.tsx`: [description]
+- `main.ts`: [description]
+- `src/Settings/SettingsStore.ts`: [description]
+- `src/Settings/normalizeSettings.ts`: [description]
+- `src/Utils/debounce.ts`: [description]
+- `src/Utils/isEnumValue.ts`: [description]
+- `src/services/backgrounds.ts`: [description]
 - `src/services/bookmarks.ts`: [description]
-- `ARCHIVE/CHANGELOG-2026-08-30-f470e16.md` *(renamed from `ARCHIVE/CHANGELOG-2026-08-30.md`)*: [description]
+- `src/services/commands.ts`: [description]
+- `src/services/newTabHijack.ts`: [description]
+- `src/services/versionCheck.ts`: [description]
+- `styles.scss`: [description]
+- `tsconfig.json`: [description]
+- `ARCHIVE/CHANGELOG-2026-08-30-8b01b76.md` *(renamed from `ARCHIVE/CHANGELOG-2026-08-30.md`)*: [description]
+- `src/TabCandyView.tsx` *(moved from `Views/ReactView.tsx`)* ⚠️ *rename unverified (cross-directory, name mismatch) — double-check*: [description]
+- `src/Utils/imageExtensions.ts` *(moved from `src/Types/Images.ts`)* ⚠️ *rename unverified (cross-directory, name mismatch) — double-check*: [description]
+- `src/app/App.scss` *(moved from `React/Components/App/App.scss`)* ⚠️ *rename unverified (cross-directory) — double-check*: [description]
+- `src/app/App.tsx` *(moved from `React/Components/App/App.tsx`)* ⚠️ *rename unverified (cross-directory) — double-check*: [description]
+- `src/app/components.tsx` *(moved from `React/Components/App/components.tsx`)* ⚠️ *rename unverified (cross-directory) — double-check*: [description]
+- `src/app/hooks.ts` *(moved from `React/Hooks/hooks.ts`)* ⚠️ *rename unverified (cross-directory) — double-check*: [description]
+- `src/app/utils/getBackground.ts` *(moved from `React/Utils/getBackground.ts`)* ⚠️ *rename unverified (cross-directory) — double-check*: [description]
+- `src/app/utils/getEasterDate.ts` *(moved from `React/Utils/getEasterDate.ts`)* ⚠️ *rename unverified (cross-directory) — double-check*: [description]
+- `src/app/utils/getQuote.ts` *(moved from `React/Utils/getQuote.ts`)* ⚠️ *rename unverified (cross-directory) — double-check*: [description]
+- `src/app/utils/isWithinXDays.ts` *(moved from `React/Utils/isWithinXDays.ts`)* ⚠️ *rename unverified (cross-directory) — double-check*: [description]
+- `src/app/utils/time.ts` *(moved from `React/Utils/getTime.ts`)* ⚠️ *rename unverified (cross-directory) — double-check*: [description]
+- `src/ui/modals/ChooseBackgroundFolderModal.ts` *(moved from `src/modals/ChooseBackgroundFolderModal.ts`)* ⚠️ *rename unverified (cross-directory) — double-check*: [description]
+- `src/ui/modals/ChooseImageSuggestModal.ts` *(moved from `src/modals/ChooseImageSuggestModal.ts`)* ⚠️ *rename unverified (cross-directory) — double-check*: [description]
+- `src/ui/modals/ConfirmModal.ts` *(moved from `src/modals/ConfirmModal.ts`)* ⚠️ *rename unverified (cross-directory) — double-check*: [description]
+- `src/ui/modals/CustomQuotesModal.scss` *(moved from `src/Utils/CustomQuotesModel.scss`)* ⚠️ *rename unverified (cross-directory, name mismatch) — double-check*: [description]
+- `src/ui/modals/CustomQuotesModal.ts` *(moved from `src/modals/CustomQuotesModel.ts`)* ⚠️ *rename unverified (cross-directory, name mismatch) — double-check*: [description]
 
 ### New Files Created
-- `React/Components/App/components.tsx`: [description]
-- `React/Hooks/hooks.ts`: [description]
+- `src/Settings/SettingsTab.ts`: [description]
+- `src/Settings/defaultSettings.ts`: [description]
+- `src/types.ts`: [description]
+- `src/ui/modals/ChooseSearchProvider.ts`: [description]
 
 ### Files Removed / Archived
-- `React/Context/ObsidianAppContext.ts`: [description]
+- `React/Utils/getTimeOfDayGreeting.ts`: [description]
+- `manifest-beta.json`: [description]
+- `src/Types/Enums.ts`: [description]
+- `src/Types/Interfaces.ts`: [description]
+- `src/Utils/Observable.ts`: [description]
+- `src/Utils/capitalizeFirstLetter.ts`: [description]
 
 
 <!-- archivist:auto-end -->
 ## Notes
 
-New files:
-- `React/Hooks/hooks.ts` — `useSettings`, `useClock`, `useQuote`, `useBackground`, `useRecentFiles`, `useBookmarks`
-- `React/Components/App/components.tsx` — `Icon`, `SearchButton`, `RecentFiles`, `Bookmarks`, `QuoteDisplay`, `BackgroundSurface`
-
-Modified:
-- `React/Components/App/App.tsx` — gutted down to a composition root, just wires hooks to the new presentational components
-- `Views/ReactView.tsx` — passes `this.app` as a prop now instead of via context
-- `src/services/bookmarks.ts` — fixed `getBookmarks()`'s declared return type (`TAbstractFile[]` → `TFile[]`), which was blocking the new hook and was stale from §6
-- `REFACTOR docs/REFACTOR-DECISIONS.md` / `REFACTOR-IMPLEMENTATION-CHECKLIST.md`
-- The `Icon` component doesn't just isolate `dangerouslySetInnerHTML` anymore, it kills it outright — `getIcon()` hands back a real `SVGElement`, so `Icon` appends that DOM node directly via a ref instead of serializing it to a string first.
-
-Deleted:
-- `React/Context/ObsidianAppContext.ts`
-
-See [[REFACTOR-IMPLEMENTATION-CHECKLIST]] for full details
+This commit consists of the complete restructuring of the project. Gone are the 80 random folders carrying bits and pieces of the plugin, consolidated into a single `src`. See [[REFACTOR-IMPLEMENTATION-CHECKLIST]] §8 for details.
 
 **Commit Message**
-chore: refactor, part 7, react restructure
+chore: refactor, part 8, consolidate the file structure
 
 ---
 
 *This changelog was automatically generated by Archivist CLI.*
 *See [Archivist CLI](https://github.com/lvnacy-notes/archivist-cli) for more information.*
+

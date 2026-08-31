@@ -5,7 +5,7 @@ import {
 } from 'obsidian';
 
 class ConfirmModal extends Modal {
-	_onConfirm: Function;
+	_onConfirm: () => void;
 	_title: string;
 	_text: string;
 	_confirmButtonText: string;
@@ -13,7 +13,7 @@ class ConfirmModal extends Modal {
 
 	constructor(
 		app: App,
-		onConfirm: Function,
+		onConfirm: () => void,
 		title: string,
 		text: string,
 		confirmButtonText: string,

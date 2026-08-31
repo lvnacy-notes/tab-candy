@@ -33,7 +33,7 @@ Full rationale for every item below is in [REFACTOR-DECISIONS.md](REFACTOR-DECIS
 - [x] Add the flat-config dependencies imported by `eslint.config.js`: `eslint`, `@stylistic/eslint-plugin`, and `eslint-plugin-obsidianmd` at compatible versions. None of these were actually installed before this pass — `eslint.config.js` imported packages that weren't in `package.json` at all, so `npm run lint` could not have run previously. Also required, not anticipated at the outset: `typescript-eslint` (unified meta-package), `@eslint/js`, and `@eslint/json` — all are peer dependencies of `eslint-plugin-obsidianmd` that its own `package.json` declares but its README doesn't mention installing. `@eslint/json` had to be pinned to the **exact** version obsidianmd's peer range specifies (`0.14.0`), and `@eslint/js` pinned to `^9.30.1` rather than its own latest (`10.0.1`) — obsidianmd 0.4.2 hasn't updated its peer range for ESLint 10 yet, even though ESLint 10 itself is used at the top level without issue.
 - [x] Update the `obsidian` package to the current API declarations used for implementation. Was pinned to the literal floating string `"latest"` (no version pin at all — nondeterministic across installs/CI runs); now pinned to `^1.13.1`.
 - [x] Remove the direct `electron` dependency after runtime Electron usage is gone. **Sequencing note:** originally scoped to happen after §4's vault-adapter rebuild. Pulled forward and done now instead, as an explicit stopgap decision, because `npm audit` flagged 2 high-severity CVEs against the pinned `electron@25.8.1`. The dependency and its `fs`/`path`/`electron` runtime imports are fully removed from `main.ts` and `src/Settings/Settings.ts`, but the three features they backed are **disabled, not carried forward**: OS-folder background sync (`syncLocalBackgroundsFromDirectory()`, deleted), the "Browse" folder picker, and the "Add local image" file picker. (An intermediate settings-tab notice pointing at the old directory field was briefly added here, then deleted outright in §4 once it was recognized as a legacy accommodation the Session Guidelines rule out — see §4's entries for the final state: no notice, no reference to the removed field anywhere.) **§4 still needs to build the real vault-relative replacement from scratch** — this was a removal, not a head start on rebuilding those features. `npm audit` now reports 0 vulnerabilities.
-- [x] Add package scripts for `typecheck`, `lint`, and tests. `typecheck` and `lint` added (plus `typecheck:fast` for the tsgo split, see above). **Test script still open** — no test runner has been chosen or wired up yet; that's §9.
+- [x] Add package scripts for `typecheck`, `lint`, and tests. `typecheck` and `lint` added (plus `typecheck:fast` for the tsgo split, see above). **Test script still open** — no test runner has been chosen or wired up yet; that's §10.
 - [x] Make `build` run typecheck and the production bundle in sequence. `build` runs `pnpm run typecheck && node esbuild.config.js production` (updated from `npm run` when pnpm was adopted for real, later in this section; `esbuild.config.mjs` → `.js` rename happened later still — see the target/output-path entry below).
 - [x] Update `eslint.config.js` to lint `.ts`, `.tsx`, and intentionally selected build files. `.tsx` was missing from the files glob entirely — React components were never actually being linted.
 - [x] Correct stale flat-config ignore entries for `.mjs` files and generated output. At the time: `esbuild.config.js`/`version-bump.js` in the ignore list corrected to their real `.mjs` names; `dist/**` added (wasn't ignored at all before). **Superseded later in this section**: both files were subsequently renamed back to `.js` (see the target/output-path entry below, `"type": "module"` in `package.json` makes the `.mjs` extension unnecessary — plain `.js` is ESM project-wide now), so the ignore list points at `.js` names again today, this time because that's genuinely what the files are called, not because of a stale copy-paste.
@@ -68,7 +68,7 @@ These were discovered incidentally while doing toolchain work above, not sought 
 - [x] Apply the approved display name, `Tab Candy`, to maintained source and documentation.
 - [x] Apply the approved class and identifier naming convention: `TabCandyPlugin`, `TabCandySettings`, `TabCandyView`, and consistent `tabcandy` or `tab-candy` CSS names. **Done.** `TabCandyPluginSettings` → `TabCandySettings` (interface); `ReactView` → `TabCandyView` and its exported constant `TAB_CANDY_REACT_VIEW` → `TAB_CANDY_VIEW_TYPE` (the registered view-type *string*, `'tabcandy-react-view'`, is deliberately unchanged — it's Obsidian's runtime identifier for open leaves, and changing it would orphan already-open Tab Candy tabs on upgrade for no benefit); `TabCandyPluginSettingTab` → `TabCandySettingTab` for the same "Plugin" redundancy reason as the settings interface. CSS: `tabcandysettings-*` (missing hyphen) → `tabcandy-settings-*`; unprefixed `customQuotesTable` → `tabcandy-customquotes-table`. `Views/ReactView.tsx`'s filename intentionally not renamed to match — file relocation belongs to §8. Verified via `pnpm typecheck`/`build`/`lint`; lint's 194 problems are byte-identical before and after, so the rename introduced no new findings.
 - [x] Update `manifest.json`.
-- [x] Update `manifest-beta.json`.
+- [x] Update `manifest-beta.json`. **Superseded**: the file itself was deleted in §8 once found to have zero benefit for modern BRAT (v1.1.0+), which reads `manifest.json` from GitHub release assets rather than a root-level `manifest-beta.json`; see `REFACTOR-DECISIONS.md` and §10's BRAT workflow items.
 - [x] Update `package.json`; this repository does not use a tracked `package-lock.json`.
 - [x] Update release workflow plugin paths under `.github/workflows/`.
 - [ ] Update README title, prose, installation URL, links, and image alt text.
@@ -95,7 +95,7 @@ These were discovered incidentally while doing toolchain work above, not sought 
 - [x] Replace the untyped `Observable`. `SettingsStore` replaces it everywhere it was referenced (`main.ts`, `Views/ReactView.tsx`, `React/Components/App/App.tsx`). `src/Utils/Observable.ts` itself is now dead code with zero remaining references — left in place rather than deleted, since file deletion is §8's job per REFACTOR.md's own "Remove the custom `Observable` after the settings store migration is complete," which is listed under §8, not here. It's now genuinely actionable there.
 - [x] Ensure unsubscribe removes the subscriber rather than retaining it. Confirmed the bug was real: `Observable.onChange()`'s returned unsubscribe filtered subscribers with `value === callback` — keeping the match instead of removing it, the exact opposite of what an unsubscribe should do. `SettingsStore.subscribe()` uses a `Set` and `.delete()`, which can't get that backwards.
 - [x] Batch or debounce text-setting saves and avoid rebuilding the entire settings screen on each keystroke. The three free-text fields (`customBackground`, `greetingText`, `backgroundsFolder`) now go through a 500ms-debounced update via a `debounce()` utility (`src/Utils/debounce.ts`) bound once in the `TabCandySettingTab` constructor, so it survives `display()` redraws instead of being rebuilt (and its pending timer lost) on every one. None of the three ever called `this.display()` on keystroke to begin with, so the "avoid rebuilding the screen" half was already true; the debounce fixes the "a write on every keystroke" half.
-- [ ] Test fresh defaults, partial settings, and malformed settings. **Blocked on §9**, same as §1's "Test script still open" note — no test runner is wired up yet, so there's nowhere to put these tests today. `normalizeSettings()` was written as a pure function specifically so this is a drop-in unit-test target once §9 picks a runner.
+- [ ] Test fresh defaults, partial settings, and malformed settings. **Blocked on §10**, same as §1's "Test script still open" note — no test runner is wired up yet, so there's nowhere to put these tests today. `normalizeSettings()` was written as a pure function specifically so this is a drop-in unit-test target once §10 picks a runner.
 
 
 ## 4. Vault-Based Backgrounds And Mobile Support
@@ -200,28 +200,43 @@ Entered this section with the build broken: removing this project's remaining `@
 - [x] Avoid creating a component for every small text block. Time, greeting, and the quote's own content/author lines stay as plain markup in `App.tsx`/`QuoteDisplay` rather than becoming their own components.
 - [x] Replace `dangerouslySetInnerHTML` where practical; otherwise isolate and constrain it. Replaced outright, not just isolated: `getIcon()` returns a real `SVGElement`, so `Icon` now holds a ref and appends/clears that DOM node directly - no `XMLSerializer` round-trip, no HTML string, no `dangerouslySetInnerHTML` anywhere in the codebase.
 - [x] Ensure keyboard search behavior works with mobile and desktop input expectations. Unchanged from the working original: the container's `onKeyDown` still runs the inline search command on any bare alphanumeric key, `Ctrl`/`Alt` combinations excluded. Not a mobile-specific behavior to begin with (no on-screen keyboard `keydown` peculiarities were in scope here), so nothing needed changing.
-- [ ] Test loading, empty, error, and populated render states. **No test runner exists yet** - that's §9. Nothing to run these against until then.
-- [ ] Test view unmount, settings updates, timer cleanup, and background cleanup. Same blocker as above - deferred to §9.
+- [ ] Test loading, empty, error, and populated render states. **No test runner exists yet** - that's §10. Nothing to run these against until then.
+- [ ] Test view unmount, settings updates, timer cleanup, and background cleanup. Same blocker as above - deferred to §10.
 
 ## 8. Consolidate The File Structure
 
-- [ ] Move maintained source under a coherent `src/` structure.
-- [ ] Choose a small number of meaningful areas, such as `app`, `services`, `ui`, `settings`, and `types`.
-- [ ] Combine `Enums.ts` and `Interfaces.ts` into `types.ts` if the type surface remains small.
-- [ ] Combine tiny time utilities if doing so improves discoverability.
-- [ ] Fold the capitalization helper into the settings option-label code if it has no other meaningful consumer.
-- [ ] Keep modals separate only when their behavior warrants it; otherwise group related small modals.
-- [ ] Remove the context when it no longer provides a useful dependency boundary.
+- [x] Move maintained source under a coherent `src/` structure. All maintained source now lives under `src/`. `main.ts` stays at the repo root, unmoved — Obsidian/esbuild entry-point convention, not an oversight.
+- [x] Choose a small number of meaningful areas, such as `app`, `services`, `ui`, `settings`, and `types`. Landed on `src/app/`, `src/services/`, `src/settings/`, `src/ui/modals/`, `src/utils/`, and a single `src/types.ts` (not a directory — see below).
+- [x] Combine `Enums.ts` and `Interfaces.ts` into `types.ts` if the type surface remains small. **Went further per Lvnatic's explicit call**: every scattered type in the codebase — the enums, `SearchProvider`, `CustomQuote`, plus `TabCandySettings` (previously in `Settings.ts`) and `Quote` (previously in `getQuote.ts`) — now lives in one `src/types.ts` as the single point of origin, not just the two originally-named files. Kept as a flat file rather than a `types/` directory with a barrel export, since the combined surface (~100 lines) didn't reach the size that would justify one; flagged this choice explicitly for sign-off rather than deciding it silently. One dead type (`Image` in the old `ChooseImageSuggestModal.ts`, zero consumers anywhere) was found and deleted during consolidation rather than carried forward. `BACKGROUND_IMAGE_EXTENSIONS` stayed out of `types.ts` — it's a runtime constant, not a type — and got its own home at `src/utils/imageExtensions.ts`.
+- [x] Combine tiny time utilities if doing so improves discoverability. Merged `getTime.ts` + `getTimeOfDayGreeting.ts` into one `src/app/utils/time.ts` — both are tiny, both serve the clock/greeting display, and both are consumed from the same two call sites. Deliberately left `getEasterDate.ts`/`isWithinXDays.ts` separate: they serve the unrelated seasonal-background date math, and folding four files together just because they're all small would have mixed concerns rather than clarified them.
+- [x] Fold the capitalization helper into the settings option-label code if it has no other meaningful consumer. Confirmed via repo-wide grep that `capitalizeFirstLetter.ts`'s only consumer was the background-theme dropdown's option labels in the old `Settings.ts`. Folded in as a local helper at the top of `src/settings/SettingsTab.ts`; the standalone file is deleted.
+- [x] Keep modals separate only when their behavior warrants it; otherwise group related small modals. Evaluated and kept all five modals as separate files — each has genuinely distinct behavior (folder picker, image picker, search-provider picker, generic confirm, quote editor), and grouping any of them into a shared file would violate the one-class-per-file rule regardless.
+- [x] Remove the context when it no longer provides a useful dependency boundary. Already done in §7 (`ObsidianAppContext.ts` deleted there); re-confirmed nothing was left behind.
 - [x] Remove the custom `Observable` now that `SettingsStore` has fully replaced it.
-- [ ] Remove dead imports, unused fields, unused result properties, and `Function`-typed callbacks. **Partially done, incidentally.** The two unused modal `result` fields named explicitly in this line item (`ChooseImageSuggestModal`, `ChooseSearchProvider`) were already removed in §1 while chasing a `strictPropertyInitialization` error — found because a compiler flag flagged them as uninitialized, then confirmed via a repo-wide grep that `.result` was never read anywhere, so removed rather than initialized. The `Function`-typed callback part of this line is still fully open: `src/Utils/Observable.ts`'s `subscribers: Function[]` and the two matching `Function`-typed props in `src/modals/ConfirmModal.ts`/`CustomQuotesModel.ts` are untouched (these surfaced as `@typescript-eslint/no-unsafe-function-type` lint findings in §1 but were deliberately left for this section rather than pulled forward).
-- [ ] Keep `screenshots/` and release documentation unless there is a separate product decision to remove them.
-- [ ] Do not delete, rename, or lint-scope `updates.ts` as part of this work.
-- [ ] Update esbuild entry points and import paths after moves.
-- [ ] Run typecheck immediately after structural moves.
-- [ ] Choose one import strategy: relative imports or one documented alias configuration. **Moved here from §1** — this is the real fork behind `tsconfig.json`'s `baseUrl` → `paths` swap in §1 (forced early by `tsgo` hard-erroring on `baseUrl`, not chosen as an architecture decision). The actual mixed style — bare imports like `"src/Utils/Observable"` and `"main"` sitting alongside genuine relative imports — is untouched and belongs here, where files are moving anyway.
-- [ ] Evaluate `noUnusedLocals` and `noUnusedParameters`. **Moved here from §1** — its own stated trigger ("after the rename cleanup") always pointed here, not at toolchain version work. Natural pairing with the `Function`-typed-callback/dead-field sweep above: flip the flag, fix what it finds, one pass — same pattern already used for `strictPropertyInitialization`/`strictFunctionTypes` in §1.
+- [x] Remove dead imports, unused fields, unused result properties, and `Function`-typed callbacks. The `Function`-typed callbacks left open from §1 are now fixed: `ConfirmModal.ts`'s `_onConfirm: Function` → `() => void`, `CustomQuotesModel.ts`'s `_onSave: Function` → `(customQuotes: CustomQuote[]) => void`. Found and fixed two more `any`-typed change-event handlers and one implicit-`any` `JSON.parse()` result in `CustomQuotesModel.ts` while in that file for the `Function` fix — same class of issue, not separately tracked anywhere, so fixed alongside rather than left for §9.
+- [x] Keep `screenshots/` and release documentation unless there is a separate product decision to remove them. No such decision was made; confirmed untouched (`git status` shows no changes under `screenshots/`).
+- [x] Do not delete, rename, or lint-scope `updates.ts` as part of this work. Re-confirmed `updates.ts` does not exist on this branch (consistent with §0's earlier finding) — nothing to touch.
+- [x] Update esbuild entry points and import paths after moves. `esbuild.config.js`'s entry point (`"main.ts"`) needed no change, since `main.ts` stayed at the repo root. Every import path across the codebase was rewritten to match the new file locations.
+- [x] Run typecheck immediately after structural moves. Run repeatedly throughout — clean after every batch of moves, not just at the end.
+- [x] Choose one import strategy: relative imports or one documented alias configuration. **Decided: relative imports everywhere, no bare specifiers, no `paths` alias.** The mixed style flagged in this line's original note (`"src/Utils/Observable"`-style bare imports alongside genuine relative imports, both only resolving via `tsconfig.json`'s blunt `paths: { "*": ["./*"] }` wildcard) is fully resolved — every import in the codebase is now relative.
+- [x] Evaluate `noUnusedLocals` and `noUnusedParameters`. Turned on in `tsconfig.json`. Surfaced two findings (unused `evt` params in `ChooseImageSuggestModal.ts`/`ChooseSearchProvider.ts`), fixed by prefixing with `_` per the project's existing unused-arg convention.
 
-## 9. Tests And CI
+## 9. Type System Hardening And Full Cleanup
+
+Goal: by the end of this section, `pnpm run typecheck`, `pnpm run typecheck:fast`, `pnpm run lint`, and `pnpm run build` are all clean with zero errors and zero warnings, so §10 (Tests And CI) only has to troubleshoot the test suite and workflows themselves, not pre-existing code issues.
+
+- [ ] Audit every remaining `any` in the codebase; replace each with a concrete type, a generic, or a type guard. None should remain unless a boundary is genuinely untyped at its source (e.g. a raw third-party JSON response) - and even then, narrow to a real type immediately at that boundary rather than letting `any` propagate.
+- [ ] Audit every remaining `unknown`; narrow it to a concrete type via a type guard or assertion at the point of use rather than passing `unknown` further into the codebase.
+- [ ] Review every `as` type assertion for necessity. Replace with a type guard, a narrower type, or remove it entirely where the compiler can already prove the type without help.
+- [ ] Resolve every remaining `pnpm run typecheck` error and warning, including any newly surfaced by adopting further strict `tsconfig.json` flags beyond `noUnusedLocals`/`noUnusedParameters` if doing so is warranted.
+- [ ] Resolve every remaining `pnpm run lint` error and warning, including the items deliberately deferred from §1's triage and never fully investigated: `no-floating-promises`, `no-deprecated`, `no-duplicate-enum-values`, `no-unsafe-enum-comparison`, and anything else outstanding at the start of this section.
+- [ ] Review `src/types.ts` for completeness and accuracy: confirm every exported interface, enum, and type alias used across the codebase lives there, and no module has quietly reintroduced a local type or a duplicate shape.
+- [ ] Review all function signatures - exported and internal - for precise parameter and return types. No implicit `any` parameters, no untyped callback shapes.
+- [ ] Sweep for dead type exports (interfaces/enums/types with zero consumers) and remove them.
+- [ ] Confirm no `@ts-ignore`, `@ts-expect-error`, or blanket lint-disable comments remain anywhere in maintained code, unless each is individually justified with an inline explanation of why the underlying issue can't be fixed directly.
+- [ ] Re-run `pnpm run typecheck`, `pnpm run typecheck:fast`, `pnpm run lint`, and `pnpm run build` and confirm all four are clean before moving to §10.
+
+## 10. Tests And CI
 
 - [ ] Add unit tests for settings defaults and normalization.
 - [ ] Add unit tests for `normalizeSettings()`: defaults, malformed/partial data, and enum validation.
@@ -234,17 +249,20 @@ Entered this section with the build broken: removing this project's remaining `@
 - [ ] Add bookmark flattening and disabled-plugin tests, if bookmarks remain.
 - [ ] Add React tests for major display states and user actions.
 - [ ] Add view lifecycle tests for open, close, recreate, and multiple leaves.
-- [ ] Triage the lint findings deliberately deferred from §1 rather than pulled forward, now that `npm run lint` actually runs for the first time: `no-floating-promises` (24 — unawaited async calls, not previously documented anywhere; check whether any are real fire-and-forget bugs like an unhandled `saveSettings()` rejection, or just event handlers that don't need awaiting), `no-deprecated` (18 — likely surfaced by bumping the `obsidian` types package from an unpinned `"latest"` to `^1.13.1`; check what's now flagged against the current API), `no-duplicate-enum-values` (2 — a real bug if genuine, not investigated), `no-unsafe-enum-comparison` (12 — may already be resolved by §5's enum-boundary-validation fix, may not; re-check count after that lands). None of these were investigated in §1 beyond counting and bucketing them.
+- [x] Triage the lint findings deliberately deferred from §1 rather than pulled forward, now that `npm run lint` actually runs for the first time. **Superseded**: full resolution (not just triage) of these findings is now owned by §9 above, added when `manifest-beta.json` was removed and this section's scope was reviewed; see `REFACTOR-DECISIONS.md`.
 - [ ] Add CI jobs for Node 24+, typecheck, lint, tests, and production build.
 - [ ] Ensure CI never requires an Obsidian desktop or Electron runtime for unit tests.
 - [ ] Keep a manual desktop/mobile test matrix for APIs that cannot be fully mocked.
+- [ ] Build a GitHub Actions release workflow that creates a GitHub Release tagged with the plugin version and attaches `main.js`, `manifest.json`, and `styles.css` as release assets. Modern BRAT (v1.1.0+) fetches `manifest.json` directly from release assets rather than reading a root-level `manifest-beta.json`, which is why that file was removed in §8 - see `REFACTOR-DECISIONS.md`.
+- [ ] For beta distribution, cut GitHub pre-releases tagged with a semver pre-release identifier (e.g. `1.1.0-beta.0`) rather than maintaining a separate `manifest-beta.json`, so BRAT's "latest version" install mode picks them up correctly.
+- [ ] Decide and document whether beta pre-releases are cut from a dedicated branch or from tagged commits on the default branch, and record the decision in `REFACTOR-DECISIONS.md`.
 
-## 10. Release And Documentation
+## 11. Release And Documentation
 
 - [ ] Update `manifest.json` version and minimum Obsidian version.
 - [ ] Update `manifest-beta.json` consistently.
 - [ ] Update `versions.json` for backward-compatible version/minimum-version mappings.
-- [ ] Verify the release workflow uses the approved plugin id and output paths. No workflow files currently exist — removed and deferred; see §9's CI item.
+- [ ] Verify the release workflow uses the approved plugin id and output paths. No workflow files currently exist - removed and deferred; see §10's CI/BRAT items.
 - [ ] Confirm the release artifact contains `manifest.json`, bundled `main.js`, and compiled styles.
 - [ ] Update README setup instructions for Node 24+.
 - [ ] Update README background instructions to describe vault folders and mobile support.
@@ -253,7 +271,7 @@ Entered this section with the build broken: removing this project's remaining `@
 - [ ] Review screenshots and alt text for old branding.
 - [ ] Check the community plugin listing requirements before publishing.
 
-## 11. Final Audit And Sign-Off
+## 12. Final Audit And Sign-Off
 
 - [ ] Run `pnpm run typecheck` successfully.
 - [ ] Run `pnpm run lint` successfully.
@@ -293,4 +311,4 @@ Complete sections 7 and 8. React should render typed data through meaningful bou
 
 ### Milestone 5: Release Candidate
 
-Complete sections 9, 10, and 11. Automated checks, manual desktop/mobile validation, and release documentation should all be complete.
+Complete sections 9, 10, 11, and 12. A hardened, `any`/`unknown`-free type system and a clean lint baseline, automated checks, manual desktop/mobile validation, and release documentation should all be complete.

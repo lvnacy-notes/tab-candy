@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf } from 'obsidian';
 import { Root, createRoot } from 'react-dom/client';
-import ReactApp from '../React/Components/App/App';
-import SettingsStore from 'src/Settings/SettingsStore';
+import ReactApp from './app/App';
+import SettingsStore from './settings/SettingsStore';
 
 export const TAB_CANDY_VIEW_TYPE = 'tabcandy-react-view';
 

@@ -1,21 +1,25 @@
-import TabCandyPlugin from '../../main';
+import TabCandyPlugin from '../../../main';
 import { Modal, Setting } from 'obsidian';
 import ConfirmModal from './ConfirmModal';
-import { CustomQuote } from '../Types/Interfaces';
+import { CustomQuote } from '../../types';
 
-class CustomQuotesModel extends Modal {
-	_onSave: Function;
+export default class CustomQuotesModal extends Modal {
+	_onSave: (customQuotes: CustomQuote[]) => void;
 	_plugin: TabCandyPlugin;
 	_customQuotes: CustomQuote[];
 
-	constructor(plugin: TabCandyPlugin, onSave: Function) {
+	constructor(
+		plugin: TabCandyPlugin,
+		onSave: (customQuotes: CustomQuote[]) => void
+	) {
 		super(plugin.app);
 		this._plugin = plugin;
 		this._onSave = onSave;
-		// Ugly way to deep clone the array and its objects
+		// Deep clone via round-tripping through JSON, so edits made in this
+		// modal don't mutate the settings object until Save is clicked.
 		this._customQuotes = JSON.parse(
 			JSON.stringify(this._plugin.settings.customQuotes)
-		);
+		) as CustomQuote[];
 	}
 
 	onOpen() {
@@ -67,8 +71,10 @@ class CustomQuotesModel extends Modal {
 			const quoteTextInput = textCell.createEl('textarea', {
 				text: customQuote.text,
 			});
-			quoteTextInput.addEventListener('change', (e: any) => {
-				this._customQuotes[index].text = e.target?.value;
+			quoteTextInput.addEventListener('change', (e: Event) => {
+				this._customQuotes[index].text = (
+					e.target as HTMLTextAreaElement
+				).value;
 			});
 
 			const authorCell = tableRow.createEl('td');
@@ -76,8 +82,10 @@ class CustomQuotesModel extends Modal {
 				type: 'text',
 				value: customQuote.author,
 			});
-			quoteAuthorInput.addEventListener('change', (e: any) => {
-				this._customQuotes[index].author = e.target?.value;
+			quoteAuthorInput.addEventListener('change', (e: Event) => {
+				this._customQuotes[index].author = (
+					e.target as HTMLInputElement
+				).value;
 			});
 		});
 
@@ -101,5 +109,3 @@ class CustomQuotesModel extends Modal {
 		});
 	}
 }
-
-export default CustomQuotesModel;

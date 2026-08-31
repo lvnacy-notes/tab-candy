@@ -1,6 +1,5 @@
 import { App, TFile } from 'obsidian';
-import { TabCandySettings } from '../Settings/Settings';
-import { BOOKMARK_SOURCE } from '../Types/Enums';
+import { BOOKMARK_SOURCE, TabCandySettings } from '../types';
 
 /**
  * Shape of an entry in the Bookmarks core plugin's item tree. Bookmarks can
