@@ -6,7 +6,7 @@ import {
 	Setting,
 } from 'obsidian';
 import ChooseSearchProvider from '../ui/modals/ChooseSearchProvider';
-import CustomQuotesModel from '../ui/modals/CustomQuotesModal';
+import CustomQuotesModal from '../ui/modals/CustomQuotesModal';
 import {
 	BOOKMARK_SOURCE,
 	BackgroundTheme,
@@ -572,7 +572,7 @@ class TabCandySettingTab extends PluginSettingTab {
 				component.setButtonText('Edit');
 
 				component.onClick(() => {
-					new CustomQuotesModel(
+					new CustomQuotesModal(
 						this.plugin,
 						(modifiedCustomQuotes: CustomQuote[]) => {
 							this.updateSettings(
