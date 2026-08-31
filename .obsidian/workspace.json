@@ -36,6 +36,7 @@
             }
           }
         ],
+        "currentTab": 1,
         "stacked": true
       }
     ],
@@ -200,8 +201,14 @@
       "bases:Create new base": false
     }
   },
-  "active": "1ee69819bac63c8d",
+  "active": "9875b77fb22b6013",
   "lastOpenFiles": [
+    "ARCHIVE/CHANGELOG-2026-08-31.md",
+    "REFACTOR docs/REFACTOR-IMPLEMENTATION-CHECKLIST.md",
+    "tab-candy-images/neon_by_blurr3383_dmqpzxl-pre.jpg",
+    "tab-candy-images/_wr_2809__by_aaron888_ai_dmqlfje-pre.png",
+    "tab-candy-images/jinx_by_crishark_dmdcwjc-fullview.jpg",
+    "tab-candy-images",
     "ARCHIVE/CHANGELOG-2026-08-28.md",
     "src/Settings/normalizeSettings.ts",
     "src/Settings/SettingsStore.ts",
@@ -212,14 +219,12 @@
     "tabcandy-section-2-3/src/modals/ChooseSearchProvider.ts",
     "tabcandy-section-2-3/src/Utils/isEnumValue.ts",
     "tabcandy-section-2-3/src/Utils/debounce.ts",
-    "tabcandy-section-2-3/src/Utils/CustomQuotesModel.scss",
     "tabcandy-section-2-3/REFACTOR docs/REFACTOR-IMPLEMENTATION-CHECKLIST.md",
     "tabcandy-section-2-3/REFACTOR docs/REFACTOR-DECISIONS.md",
     "ARCHIVE/CHANGELOG-2026-08-27-041ea78.md",
     "ARCHIVE/CHANGELOG-2026-08-27.md",
     "ARCHIVE/CHANGELOG-2026-08-26.md",
     "ARCHIVE/CHANGELOG-2026-08-26-1738ab6.md",
-    "REFACTOR docs/REFACTOR-IMPLEMENTATION-CHECKLIST.md",
     "ARCHIVE/CHANGELOG-2026-08-24-32506a4.md",
     "ARCHIVE/CHANGELOG-2026-08-24.md",
     "ARCHIVE/CHANGELOG-2026-08-24-c9be53a.md",

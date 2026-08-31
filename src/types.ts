@@ -56,7 +56,7 @@ export interface TabCandySettings {
 	settingsVersion: number;
 	// Drives src/services/newTabHijack.ts's workspace `layout-change`
 	// watcher: when true, opening a new empty tab automatically shows Tab
-	// Candy. When false, Tab Candy only opens via the "Open Tab Candy"
+	// Candy. When false, Tab Candy only opens via the "open new tab"
 	// command (see activateView() in the same file). Defaulted on so this
 	// matches the plugin's out-of-the-box behavior.
 	replaceEmptyTabsWithTabCandy: boolean;

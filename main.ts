@@ -102,7 +102,11 @@ export default class TabCandyPlugin extends Plugin {
 	 * enforces enum checking and schema validation on every field.
 	 */
 	async loadSettings() {
-		const data = (await this.loadData()) ?? {};
+		// loadData() is typed Promise<any> by Obsidian's own typings, since
+		// data.json is arbitrary disk data with no compile-time shape.
+		// Widening to `unknown` here means nothing downstream can touch it
+		// without going through normalizeSettings()'s runtime validation.
+		const data: unknown = (await this.loadData()) ?? {};
 		const normalized = normalizeSettings(data);
 		this.settingsStore = new SettingsStore(
 			normalized,

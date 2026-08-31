@@ -128,7 +128,16 @@ export default defineConfig([
 					'avoidEscape': true
 				}
 			],
-			'@stylistic/semi': ['error', 'always']
+			'@stylistic/semi': ['error', 'always'],
+
+			// "Tab Candy" is this plugin's own proper noun and should keep
+			// its capitalization in UI text, same as the rule's own
+			// built-in brands (Obsidian, GitHub, etc). The `brands` option
+			// is the rule's documented extension point for exactly this -
+			// not an eslint-disable, which eslint-plugin-obsidianmd's
+			// recommended config hard-blocks for every obsidianmd/* rule
+			// (see eslint-comments/no-restricted-disable above).
+			'obsidianmd/ui/sentence-case': ['warn', { brands: ['Tab Candy'] }]
 		}
 	}
 ]);

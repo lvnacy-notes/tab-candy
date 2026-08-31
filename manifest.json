@@ -2,7 +2,7 @@
 	"id": "tabcandy",
 	"name": "Tab Candy",
 	"version": "1.0.0",
-	"minAppVersion": "1.7.2",
+	"minAppVersion": "1.13.0",
 	"description": "Creates a customizable new tab view with backgrounds, quotes, search, and more.",
 	"author": "LVNACY",
 	"authorUrl": "https://github.com/lvnacy",

@@ -1171,3 +1171,24 @@ into one file just because they're all small would have traded one
 navigation-cost problem for a mixed-concerns problem — the opposite of
 what this checklist item is for.
 
+## `minAppVersion` bumped to 1.13.0 — **decided**
+
+§9's lint pass flagged `PluginSettingTab.display()` as deprecated in favor
+of the declarative `getSettingDefinitions()`/`getControlValue()`/
+`setControlValue()` API (`@since 1.13.0`). `display()` still exists
+purely as a pre-1.13.0 fallback — Obsidian only calls it when
+`getSettingDefinitions()` returns an empty array - so a full migration to
+the declarative API would otherwise mean either maintaining two parallel
+settings-tab implementations forever, or leaving old-version users with
+a settings tab that renders nothing.
+
+`minAppVersion` was already `1.7.2` (see the entry above), so this isn't
+a large gap, and the plugin has no shipped users on any version -
+nothing has been released - so there's no upgrade-compatibility cost to
+paying it. **`minAppVersion` is bumped to `1.13.0`.** `display()` is
+removed entirely in favor of `getSettingDefinitions()`.
+
+`manifest.json`'s `version` field and `versions.json` were also hand-
+corrected to `2.0.0` (matching `package.json`, which was already ahead)
+rather than left to drift until an eventual `pnpm version` run, since
+nothing has shipped under the stale `1.0.0` either.

@@ -31,3 +31,10 @@ dist/
 
 # Remove pnpm resources
 .pnpm-store
+
+# Remove test files, directories, and temp shit
+tab-candy-images/
+**/temp.md
+**/updates.js
+**/updates.ts
+.obsidian/plugins/tabcandy/

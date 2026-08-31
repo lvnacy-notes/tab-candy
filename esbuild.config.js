@@ -1,6 +1,6 @@
 import esbuild from "esbuild";
 import process from "process";
-import builtins from "builtin-modules";
+import { builtinModules } from "node:module";
 import { sassPlugin } from "esbuild-sass-plugin";
 import copyStaticFiles from "esbuild-copy-static-files";
 import path from "path";
@@ -45,7 +45,7 @@ const context = await esbuild.context({
 		"@lezer/common",
 		"@lezer/highlight",
 		"@lezer/lr",
-		...builtins,
+		...builtinModules,
 	],
 	format: "cjs",
 	// Settled against Obsidian's actual runtime floor rather than left as an
