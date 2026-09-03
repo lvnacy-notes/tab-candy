@@ -846,7 +846,7 @@ A full sweep (`eslint-plugin-obsidianmd`'s `no-unsupported-api` /
   Obsidian API and is left alone — React-restructure territory, §7.
 ---
 
-## §6 — Commands, Bookmarks, and Network Integrations
+# §6 — Commands, Bookmarks, and Network Integrations
 
 This settles the items in §6 of
 [REFACTOR-IMPLEMENTATION-CHECKLIST.md](REFACTOR-IMPLEMENTATION-CHECKLIST.md),
@@ -860,7 +860,7 @@ Guidelines) surfaced that `app.commands`, `app.plugins`, and
 typings at all, so every one of those three files failed `tsc` before
 any §6-specific work began.
 
-### Private-registry isolation — one adapter per registry family
+## Private-registry isolation — one adapter per registry family
 
 Rather than casting `App` to a private shape at each of the three
 call sites, every read of `app.commands`, `app.plugins`, or
@@ -960,9 +960,9 @@ states requires a real Obsidian runtime this sandbox doesn't have.
 guard branch was traced by hand for the corresponding case, but that
 falls short of actually running it. Left unchecked rather than assumed.
 
-## §7 — React Restructure
+# §7 — React Restructure
 
-### `ObsidianAppContext.ts` deletion, flagged and confirmed before implementing
+## `ObsidianAppContext.ts` deletion, flagged and confirmed before implementing
 
 Once data-fetching moves into hooks that take `app: App` as a parameter,
 and presentational components (`SearchButton`, `RecentFiles`, `Bookmarks`,
@@ -977,7 +977,7 @@ flagged explicitly before implementing, confirmed, deleted outright rather
 than left as a dead, unreferenced file. `Views/ReactView.tsx` now passes
 `this.app` into `<App />` as a plain prop instead of via context provider.
 
-### Hook and small-component file locations
+## Hook and small-component file locations
 
 REFACTOR.md's target structure names `app/hooks.ts` and
 `app/components.tsx` under a `src/app/` directory that doesn't exist yet -
@@ -1043,9 +1043,9 @@ Transparent themes already hide any background via the
 `tabcandy-root--transparent`/`--transparentWithShadows` classes, so this
 has no visible effect; it just stops writing an invalid CSS value.
 
-## §8 — Consolidate The File Structure
+# §8 — Consolidate The File Structure
 
-### `types.ts`: went beyond `Enums.ts` + `Interfaces.ts`, per explicit direction
+## `types.ts`: went beyond `Enums.ts` + `Interfaces.ts`, per explicit direction
 
 The checklist item only named combining `Enums.ts` and `Interfaces.ts`.
 Lvnatic asked for more: every type in the codebase — including
@@ -1069,7 +1069,7 @@ constant, not a type, so grouping it with actual types would've been
 following the old folder's name instead of what the rule is actually for.
 It now lives at `src/utils/imageExtensions.ts`.
 
-### Naming: PascalCase for components after all, camelCase elsewhere
+## Naming: PascalCase for components after all, camelCase elsewhere
 
 The originally stated rule ("camelCase unless it exports a class") was
 applied literally in an initial pass, which would have meant `App.tsx` →
@@ -1159,9 +1159,9 @@ alongside rather than deferred to §9, since leaving known-bad typing in a
 file already open for a directly related fix would have been pointless
 busywork for a future session.
 
-## §10 — Tests And CI
+# §10 — Tests And CI
 
-### Test runner and mocking library: Vitest + `obsidian-test-mocks`, confirmed working end to end
+## Test runner and mocking library: Vitest + `obsidian-test-mocks`, confirmed working end to end
 
 `vitest`/`jsdom`/`@testing-library/react`/`@vitest/ui` were already present in
 `package.json` before this session (see the stray-dependency entry below for
@@ -1182,7 +1182,7 @@ setup ever gets a chance to intercept the import. Fixed with an explicit
 `vitest.config.ts` — this is a Vite-resolution-level fix, unrelated to and
 solved before the separate `tsc` type-mismatch problem below.
 
-### Type bridge: mock `App` isn't structurally assignable to the real `App` — `asOriginalType__()` is the sanctioned fix
+## Type bridge: mock `App` isn't structurally assignable to the real `App` — `asOriginalType__()` is the sanctioned fix
 
 `obsidian-test-mocks`' own `App` class doesn't structurally match the real
 `obsidian` package's published `App` type (concretely: the mock's
@@ -1203,7 +1203,7 @@ type distinction itself. `pnpm run typecheck` is clean with this in place —
 confirmed, not assumed; this was caught by a real `tsc` failure across five
 test files before the fix, not found by inspection.
 
-### `list()` mocking gap: the in-memory adapter never throws for a missing/malformed path
+## `list()` mocking gap: the in-memory adapter never throws for a missing/malformed path
 
 `obsidian-test-mocks`' in-memory `DataAdapter.list()` filters by path-prefix
 match and returns `{ files: [], folders: [] }` for any path with no
@@ -1221,7 +1221,7 @@ in-memory vault unmodified. Anyone touching `backgrounds.ts`'s adapter error
 handling later should know this gap exists in the mock, not assume the
 existing tests would catch a regression there without the explicit spy.
 
-### Vault mock auto-triggers real events — watcher tests drive real vault operations, not manual `trigger()` calls
+## Vault mock auto-triggers real events — watcher tests drive real vault operations, not manual `trigger()` calls
 
 `obsidian-test-mocks`' `Vault` extends `Events` and auto-fires
 `create`/`modify`/`delete`/`rename` on its own `create()`/`delete()`/
@@ -1243,7 +1243,7 @@ used throughout rather than `vi.advanceTimersByTime()`, since the debounced
 callback itself does async vault work that needs to actually resolve before
 assertions run.
 
-### Shared private-registry fixtures for `commands.ts`/`bookmarks.ts`
+## Shared private-registry fixtures for `commands.ts`/`bookmarks.ts`
 
 Both files touch the same undocumented private `App` surface
 (`commands.commands`, `plugins.plugins`, `internalPlugins.plugins`), and the
@@ -1266,7 +1266,7 @@ chaining ever runs — a proxy artifact, not a real "fails closed" test, which
 is why `withEmptyPrivateRegistries()` exists as the mandatory starting point
 for every `commands.ts` test rather than something ad hoc.
 
-### Vite production build migration — attempted, hit two confirmed walls, reverted to esbuild per the spec's own accepted fallback
+## Vite production build migration — attempted, hit two confirmed walls, reverted to esbuild per the spec's own accepted fallback
 
 The Testing Specification's toolchain section calls for replacing
 `esbuild.config.js` with Vite library mode for the actual `main.js`
@@ -1319,44 +1319,7 @@ separately invoking `vite build` a second time purely for the CSS (two
 build passes, two configs), or waiting for `build.lib` to support mixed
 entry types upstream, whichever lands first.
 
-### Stray dependency/build breakage traced to an abandoned local session — found and fixed, not left for the next session to trip over
-
-While investigating a stale `jsdom: ^24.0.0` pin (should have been on 30;
-caught in review, not by this session's own work), `git log -S'"jsdom"' --
-package.json` traced it to commit `614b959` ("chore: refactor, part 10,
-testing specification created") — the **same commit** that added
-`docs/SECTION-10-TEST-IMPLEMENTATION-SUMMARY.md`, a doc describing a local
-test-suite attempt that turned into "a giant fiasco" and was explicitly
-disregarded and scrubbed from context partway through this session, per
-direct instruction. Worth being explicit about for whoever reads this next:
-that abandoned attempt's leftovers weren't fully cleaned up before this
-session started, and weren't isolated to the one doc file everyone already
-knew to distrust.
-
-The same commit's `package.json` diff also **removed `esbuild-sass-plugin`
-and `esbuild-copy-static-files`** from `dependencies` — both still directly
-imported by `esbuild.config.js`, which was never actually replaced. This
-meant `pnpm run build`, `pnpm run dev`, and `pnpm run dev:mobile` had been
-silently broken (`ERR_MODULE_NOT_FOUND`) on this branch since that commit,
-independent of and predating anything done in this session or the Vite
-migration attempt above — confirmed by literally running `node
-esbuild.config.js production` and getting the resolution error before
-either package was reinstalled. Both packages are now reinstalled
-(`esbuild-sass-plugin@3.7.0`, `esbuild-copy-static-files@0.1.0` — matching
-the versions §1 already settled on, not new picks), and a real production
-build was run end to end to confirm: `dist/main.js`, `dist/manifest.json`,
-`dist/styles.css` all produced correctly, exit code 0.
-
-**Lesson for future sessions, stated directly rather than left implicit:**
-when a commit is known to be tainted (a doc from it was already flagged as
-fictional/discard), audit the *entire diff* of that commit before trusting
-anything else it touched, not just the one file that triggered suspicion.
-`jsdom` was caught by chance during an unrelated conversation, not by a
-systematic check — the dependency removal that actually broke the build
-tool was sitting in the same diff the whole time and would not have
-surfaced without going back and reading it in full after the fact.
-
-### What's left in §10 for the next session
+## What's left in §10 for the next session
 
 Completed this session, for reference: `normalizeSettings()` (82 tests,
 every field's fallback path), `SettingsStore` (14 tests, focused on the
@@ -1383,20 +1346,11 @@ untouched:
   started. `imageExtensions.ts`'s extension list is exercised *indirectly*
   through `backgrounds.test.ts` (including case-insensitivity), but has no
   standalone test file of its own.
-- **Two checklist line items are stale, not incomplete** — worth flagging
-  so no one spends time on them by mistake: "object URL creation and
-  revocation" and the "MIME mapping" half of "image-extension and MIME
-  mapping." Neither `createObjectURL`/`revokeObjectURL` nor any MIME-type
-  map exists anywhere in the current codebase (confirmed by repo-wide grep)
-  — the vault-image approach that shipped uses `adapter.getResourcePath()`
-  exclusively, which needs neither. These two items describe an
-  implementation approach earlier sections moved away from; they should be
-  struck or reworded rather than pursued as written.
 - CI (workflow jobs, the manual desktop/mobile matrix, the release
   workflow) — explicitly out of scope for this session by direct
   instruction, not attempted.
 
-### Time utilities: partial consolidation, not total
+## Time utilities: partial consolidation, not total
 
 "Combine tiny time utilities if doing so improves discoverability" named
 no specific files. `getTime.ts` and `getTimeOfDayGreeting.ts` merged into
