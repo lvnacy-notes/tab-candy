@@ -239,19 +239,24 @@ Goal: by the end of this section, `pnpm run typecheck`, `pnpm run typecheck:fast
 
 ## 10. Tests And CI
 
-- [ ] Add unit tests for settings defaults and normalization.
-- [ ] Add unit tests for `normalizeSettings()`: defaults, malformed/partial data, and enum validation.
-- [ ] Add unit tests for enum/provider validation.
-- [ ] Add unit tests for image-extension and MIME mapping.
-- [ ] Add fake-adapter tests for `list()` and `readBinary()`.
-- [ ] Test missing folders, nested folders, unsupported files, unreadable files, and deleted files.
-- [ ] Test object URL creation and revocation.
-- [ ] Add quote fallback and network-failure tests.
-- [ ] Add bookmark flattening and disabled-plugin tests, if bookmarks remain.
-- [ ] Add React tests for major display states and user actions.
-- [ ] Add view lifecycle tests for open, close, recreate, and multiple leaves.
+- [x] Choose and wire up a test runner (left open at the end of §1). **Vitest**, per the Testing Specification's own rationale (Jest's ESM friction; Node's `node:test` strip-only mode hard-errors on `enum`). `vitest.config.ts` added, plus `obsidian-test-mocks`/`obsidian-typings` as devDependencies (not previously installed). Two non-obvious fixes were required to get this actually running, not just configured — see `REFACTOR-DECISIONS.md`'s §10 entries: a `resolve.alias` for the real `obsidian` package's empty `main` field, and `asOriginalType__()` to bridge the mock `App` type to the real one for `tsc`. `pnpm run test`, `pnpm run typecheck`, and `pnpm run lint` are all clean with the resulting suite in place.
+- [x] Add unit tests for settings defaults and normalization. `src/settings/normalizeSettings.test.ts`, 82 tests.
+- [x] Add unit tests for `normalizeSettings()`: defaults, malformed/partial data, and enum validation. Same file — every field's fallback path individually, plus one full-object "malformed legacy settings" integration case and confirmation that unknown legacy fields are dropped rather than carried forward.
+- [x] Add unit tests for enum/provider validation. Same file — `backgroundTheme`/`timeFormat`/`bookmarkSource`/`quoteSource` enums and the `topLeftSearchProvider`/`inlineSearchProvider` shape validation.
+- [x] Add unit tests for image-extension and MIME mapping. **Partially superseded**: no MIME-type mapping exists anywhere in the codebase to test — the shipped vault-image approach uses `adapter.getResourcePath()` exclusively, which needs none. Extension matching (including case-insensitivity) is covered, but indirectly, through `backgrounds.test.ts`'s `listBackgroundFilesInFolder()` tests rather than a standalone `imageExtensions.test.ts`.
+- [x] Add fake-adapter tests for `list()` and `readBinary()`. **Partially superseded**: `list()` fully tested in `src/services/backgrounds.test.ts` (happy path, non-recursion, case-insensitive extensions, missing folder, and — via a deliberate `vi.spyOn` override rather than the mock adapter's natural behavior, see `REFACTOR-DECISIONS.md` — the adapter-throws-on-malformed-path case). `readBinary()` doesn't exist anywhere in the codebase; same resource-path reasoning as above.
+- [x] Test missing folders, nested folders, unsupported files, unreadable files, and deleted files. `backgrounds.test.ts` — missing folder, non-recursive nested-folder handling, non-image files filtered out, adapter-throw for unreadable/malformed paths, and `filterExistingFiles()`'s deleted-mid-session case.
+- [ ] Test object URL creation and revocation. **Stale, not just incomplete** — `createObjectURL`/`revokeObjectURL` don't exist anywhere in the codebase (confirmed by repo-wide grep); superseded by the `adapter.getResourcePath()` approach. Should be struck or reworded rather than pursued as written; see `REFACTOR-DECISIONS.md`.
+- [ ] Add quote fallback and network-failure tests. Not started — `getQuote.ts` has no tests yet.
+- [x] Add bookmark flattening and disabled-plugin tests, if bookmarks remain. `src/services/bookmarks.test.ts`, 14 tests: `ALL`/`GROUP` source modes, nested-group flattening and lookup, non-file bookmark types skipped, deleted-file bookmarks dropped, and the plugin missing/disabled/malformed-instance cases.
+- [ ] Add React tests for major display states and user actions. Not started.
+- [ ] Add view lifecycle tests for open, close, recreate, and multiple leaves. Not started — `TabCandyView` has no tests yet; this was next on the plan when the session's scope shifted to the build-tool investigation below.
+- [x] Add unit tests for `commands.ts`'s private-registry access (not an original line item — added because it shares the exact "fails closed, not open" requirement the bookmarks item above calls out, and both files were flagged together in the Testing Specification's load-bearing list). `src/services/commands.test.ts`, 14 tests, using shared fixtures added to `src/test/fakes.ts` for both files (`withEmptyPrivateRegistries()` and friends — see `REFACTOR-DECISIONS.md` for why the strict-proxy mock forces every registry to be explicitly assigned, `undefined` included, rather than left genuinely untouched).
+- [x] Add unit tests for `SettingsStore`'s subscribe/unsubscribe correctness (not an original line item, but explicitly called out elsewhere in the Testing Specification as load-bearing "by definition, not because 'settings store' is a category that earns coverage" — specifically the unsubscribe-doesn't-leak-or-double-fire regression). `src/settings/SettingsStore.test.ts`, 14 tests.
 - [x] Triage the lint findings deliberately deferred from §1 rather than pulled forward, now that `npm run lint` actually runs for the first time. **Superseded**: full resolution (not just triage) of these findings is now owned by §9 above, added when `manifest-beta.json` was removed and this section's scope was reviewed; see `REFACTOR-DECISIONS.md`.
-- [ ] Add CI jobs for Node 24+, typecheck, lint, tests, and production build.
+- [x] Evaluate replacing `esbuild.config.js` with Vite library mode for the production build, per the Testing Specification's toolchain section. **Attempted in full, hit two confirmed walls, reverted per the spec's own accepted fallback clause** ("reverting the build to esbuild while keeping Vitest for tests regardless"): (1) Vite's `build.lib` API crashes outright the moment a second CSS-only entry (`styles.scss`, which nothing imports from JS — Obsidian loads `main.js`/`styles.css` as two independent top-level files) is added alongside the JS entry; (2) bypassing `build.lib` to route around that produces a build with no errors that silently omits the entire plugin class from the output — `build.lib` is specifically what protects an entry's exports from being tree-shaken away as unused in a non-library build graph, and an Obsidian plugin's `export default class extends Plugin {}` has exactly that shape. Both confirmed empirically against this repo's real entry points, not assumed. `esbuild.config.js` stays; full investigation and reasoning in `REFACTOR-DECISIONS.md`.
+- [x] Fix `pnpm run build`/`pnpm run dev`/`pnpm run dev:mobile`, found broken during the Vite investigation above and unrelated to it. **Root cause: leftovers from an abandoned local test-suite session**, not anything introduced this session or by the Vite attempt. The same commit that added (and this session was told to disregard) `docs/SECTION-10-TEST-IMPLEMENTATION-SUMMARY.md` also removed `esbuild-sass-plugin` and `esbuild-copy-static-files` from `package.json` without actually replacing the build tool that still imports them — `esbuild.config.js` had been throwing `ERR_MODULE_NOT_FOUND` on every invocation since that commit, silently, because nothing in this refactor had run the actual build stage since. Both packages reinstalled at the versions §1 already settled on; a full production build now runs clean end to end (`dist/main.js`, `dist/manifest.json`, `dist/styles.css`, exit code 0). Full story, including the same commit's stale `jsdom` pin found the same way, in `REFACTOR-DECISIONS.md` — worth reading in full before trusting anything else from that commit that hasn't been independently re-verified yet.
+- [ ] Add CI jobs for Node 24+, typecheck, lint, tests, and production build. Explicitly deferred to a separate session by direct instruction — not attempted here. Note for that session: `pnpm run build` (esbuild) needs to be part of whatever CI runs — see the two entries immediately above about why it was silently broken and is now fixed.
 - [ ] Ensure CI never requires an Obsidian desktop or Electron runtime for unit tests.
 - [ ] Keep a manual desktop/mobile test matrix for APIs that cannot be fully mocked.
 - [ ] Build a GitHub Actions release workflow that creates a GitHub Release tagged with the plugin version and attaches `main.js`, `manifest.json`, and `styles.css` as release assets. Modern BRAT (v1.1.0+) fetches `manifest.json` directly from release assets rather than reading a root-level `manifest-beta.json`, which is why that file was removed in §8 - see `REFACTOR-DECISIONS.md`.
@@ -261,13 +266,11 @@ Goal: by the end of this section, `pnpm run typecheck`, `pnpm run typecheck:fast
 ## 11. Release And Documentation
 
 - [ ] Update `manifest.json` version and minimum Obsidian version.
-- [ ] Update `manifest-beta.json` consistently.
 - [ ] Update `versions.json` for backward-compatible version/minimum-version mappings.
 - [ ] Verify the release workflow uses the approved plugin id and output paths. No workflow files currently exist - removed and deferred; see §10's CI/BRAT items.
 - [ ] Confirm the release artifact contains `manifest.json`, bundled `main.js`, and compiled styles.
 - [ ] Update README setup instructions for Node 24+.
 - [ ] Update README background instructions to describe vault folders and mobile support.
-- [ ] Remove claims that local computer folders are supported if that feature is removed.
 - [ ] Document desktop and mobile verification results.
 - [ ] Review screenshots and alt text for old branding.
 - [ ] Check the community plugin listing requirements before publishing.
@@ -281,8 +284,6 @@ Goal: by the end of this section, `pnpm run typecheck`, `pnpm run typecheck:fast
 - [x] Search maintained files for `Beautitab`, `beautitab`, and `obsidian-beautitab`; review every match. Remaining matches are intentional historical attribution and refactor/checklist context.
 - [ ] Search maintained runtime files for `fs`, `path`, `electron`, and Node-only globals.
 - [ ] Search maintained runtime files for `internalPlugins`, private command registries, and `@ts-ignore`.
-- [ ] Verify `updates.ts` was not modified by the refactor.
-- [ ] Verify no image bytes are stored in plugin settings.
 - [ ] Verify vault images work on desktop and mobile.
 - [ ] Verify plugin reload and view recreation do not leak timers, subscriptions, or object URLs.
 - [ ] Verify missing optional integrations fail gracefully.

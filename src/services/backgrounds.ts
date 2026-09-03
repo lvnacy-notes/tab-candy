@@ -10,6 +10,54 @@ import SettingsStore from '../settings/SettingsStore';
 import debounce from '../utils/debounce';
 
 /**
+ * Filters a list of vault-relative paths down to the ones that still
+ * resolve to an actual file in the vault, dropping any that were deleted
+ * or renamed since they were recorded. Applies to both `backgroundFiles`
+ * (folder-sync results) and `manualBackgroundFiles` (individually-added
+ * images) - a stale path in either would otherwise resolve, via
+ * `getBackgroundResourcePath()`, to a URL for a file that no longer
+ * exists: not a crash, but a broken image with no signal anywhere that
+ * something's wrong.
+ *
+ * This is a read-only check - it doesn't persist anything. Callers that
+ * want the settings themselves cleaned up (not just the current render)
+ * need to write the filtered result back through the settings store
+ * themselves; see `pruneMissingManualBackgroundFiles()` below.
+ */
+export function filterExistingFiles(app: App, paths: string[]): string[] {
+	return paths.filter(
+		(path) =>
+			app.vault.getAbstractFileByPath(normalizePath(path)) instanceof
+			TFile
+	);
+}
+
+/**
+ * Resolves a vault-relative file path to a URL usable directly in an
+ * `<img src>` or CSS `background-image`. Nothing here is cached or
+ * persisted; call this at render time.
+ */
+export function getBackgroundResourcePath(app: App, path: string): string {
+	return app.vault.adapter.getResourcePath(normalizePath(path));
+}
+
+/**
+ * True when `file` is a direct child of `backgroundsFolder` - used to scope
+ * vault create/modify/delete/rename handling to files that could actually
+ * affect `backgroundFiles`, rather than re-scanning the folder on every
+ * vault event regardless of what changed. Matches the already-locked §0
+ * non-recursive decision: a file several folders deeper is intentionally
+ * ignored, same as it always has been for the folder sync itself.
+ */
+function isInBackgroundsFolder(
+	file: TAbstractFile,
+	backgroundsFolder: string
+): boolean {
+	if (!backgroundsFolder) {return false;}
+	return file.parent?.path === normalizePath(backgroundsFolder);
+}
+
+/**
  * Non-recursive discovery of background images inside a vault-relative
  * folder, using Obsidian's public vault adapter (`app.vault.adapter.list()`).
  *
@@ -60,55 +108,6 @@ export async function listBackgroundFilesInFolder(
 }
 
 /**
- * Resolves a vault-relative file path to a URL usable directly in an
- * `<img src>` or CSS `background-image`. Nothing here is cached or
- * persisted; call this at render time.
- */
-export function getBackgroundResourcePath(app: App, path: string): string {
-	return app.vault.adapter.getResourcePath(normalizePath(path));
-}
-
-/**
- * Filters a list of vault-relative paths down to the ones that still
- * resolve to an actual file in the vault, dropping any that were deleted
- * or renamed since they were recorded. Applies to both `backgroundFiles`
- * (folder-sync results) and `manualBackgroundFiles` (individually-added
- * images) - a stale path in either would otherwise resolve, via
- * `getBackgroundResourcePath()`, to a URL for a file that no longer
- * exists: not a crash, but a broken image with no signal anywhere that
- * something's wrong.
- *
- * This is a read-only check - it doesn't persist anything. Callers that
- * want the settings themselves cleaned up (not just the current render)
- * need to write the filtered result back through the settings store
- * themselves; see `pruneMissingManualBackgroundFiles()` below.
- */
-export function filterExistingFiles(app: App, paths: string[]): string[] {
-	return paths.filter(
-		(path) =>
-			app.vault.getAbstractFileByPath(normalizePath(path)) instanceof
-			TFile
-	);
-}
-
-/**
- * Re-scans the configured vault-relative backgrounds folder and writes the
- * result to settings.backgroundFiles. Safe to call repeatedly (on load, on
- * a vault event, or from the "Sync now" button), and safe to call with no
- * folder configured (resolves to an empty list rather than throwing).
- */
-export async function syncBackgroundsFolder(
-	app: App,
-	settingsStore: SettingsStore
-): Promise<void> {
-	const backgroundFiles = await listBackgroundFilesInFolder(
-		app,
-		settingsStore.get().backgroundsFolder
-	);
-	await settingsStore.update({ backgroundFiles });
-}
-
-/**
  * Drops any manualBackgroundFiles entries that no longer resolve to a real
  * vault file, persisting the filtered result. Complements the live
  * delete/rename event listeners registered by
@@ -126,22 +125,6 @@ export async function pruneMissingManualBackgroundFiles(
 	if (manualBackgroundFiles.length !== current.length) {
 		await settingsStore.update({ manualBackgroundFiles });
 	}
-}
-
-/**
- * True when `file` is a direct child of `backgroundsFolder` - used to scope
- * vault create/modify/delete/rename handling to files that could actually
- * affect `backgroundFiles`, rather than re-scanning the folder on every
- * vault event regardless of what changed. Matches the already-locked §0
- * non-recursive decision: a file several folders deeper is intentionally
- * ignored, same as it always has been for the folder sync itself.
- */
-function isInBackgroundsFolder(
-	file: TAbstractFile,
-	backgroundsFolder: string
-): boolean {
-	if (!backgroundsFolder) {return false;}
-	return file.parent?.path === normalizePath(backgroundsFolder);
 }
 
 /**
@@ -229,4 +212,21 @@ export function registerBackgroundVaultWatchers(
 			}
 		})
 	);
+}
+
+/**
+ * Re-scans the configured vault-relative backgrounds folder and writes the
+ * result to settings.backgroundFiles. Safe to call repeatedly (on load, on
+ * a vault event, or from the "Sync now" button), and safe to call with no
+ * folder configured (resolves to an empty list rather than throwing).
+ */
+export async function syncBackgroundsFolder(
+	app: App,
+	settingsStore: SettingsStore
+): Promise<void> {
+	const backgroundFiles = await listBackgroundFilesInFolder(
+		app,
+		settingsStore.get().backgroundsFolder
+	);
+	await settingsStore.update({ backgroundFiles });
 }

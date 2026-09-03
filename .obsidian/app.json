@@ -2,5 +2,6 @@
   "userIgnoreFilters": [
     "node_modules/"
   ],
-  "settingsPopoutWindow": false
+  "settingsPopoutWindow": false,
+  "showUnsupportedFiles": false
 }

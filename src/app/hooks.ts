@@ -1,4 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import {
+	useEffect,
+	useMemo,
+	useState
+} from 'react';
 import { App, TFile } from 'obsidian';
 import SettingsStore from '../settings/SettingsStore';
 import { Quote, TabCandySettings } from '../types';

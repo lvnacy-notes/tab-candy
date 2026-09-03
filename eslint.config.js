@@ -8,14 +8,16 @@ export default defineConfig([
 	...obs.configs.recommended,
 	{
 		ignores: [
-			'node_modules/**',
+			'.obsidian/**',
 			'dist/**',
+			'node_modules/**',
 			'test/**',
-			'main.js',
 			'*.map',
 			'esbuild.config.js',
 			'eslint.config.js',
-			'version-bump.js'
+			'main.js',
+			'version-bump.js',
+			'vitest.config.js'
 		]
 	},
 	{

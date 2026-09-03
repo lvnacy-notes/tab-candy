@@ -15,10 +15,16 @@ export class TabCandyView extends ItemView {
 	) {
 		super(leaf);
 		this.settingsStore = settingsStore;
-	}
-
-	getViewType() {
-		return TAB_CANDY_VIEW_TYPE;
+		// Obsidian's `View.navigation` defaults to a static, non-navigable
+		// view (the same bucket as the file explorer or calendar pane) -
+		// meaning core features that ask "give me an existing leaf that CAN
+		// be navigated" (this is literally how the file explorer picks
+		// where to open a file: Workspace.getLeaf(false), whose own doc
+		// comment says exactly that) skip right past this leaf as
+		// ineligible. A "new tab" view is the opposite of static - it's
+		// meant to be navigated away from the moment a note is picked,
+		// same as a browser's new-tab page - so it must opt in explicitly.
+		this.navigation = true;
 	}
 
 	getDisplayText() {
@@ -27,6 +33,10 @@ export class TabCandyView extends ItemView {
 
 	getIcon() {
 		return '';
+	}
+
+	getViewType() {
+		return TAB_CANDY_VIEW_TYPE;
 	}
 
 	// Neither override awaits anything - both are synchronous work - but
@@ -43,7 +53,11 @@ export class TabCandyView extends ItemView {
 
 		this.root = createRoot(this.contentEl);
 		this.root.render(
-			<ReactApp app={this.app} settingsStore={this.settingsStore} />
+			<ReactApp
+				app = { this.app }
+				settingsStore = { this.settingsStore }
+				leaf = { this.leaf }
+			/>
 		);
 		this.containerEl.addClass('tabcandy');
 

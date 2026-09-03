@@ -53,8 +53,9 @@ const fetchPublishedVersion = async (
 /**
  * Compares the running plugin's version against the latest version
  * published on GitHub (stable or beta, depending on which channel the
- * running version belongs to) and shows a persistent Notice if a newer
- * version is available. Reads `process.env.PLUGIN_VERSION`, which esbuild
+ * running version belongs to) and shows a Notice - using Obsidian's default
+ * auto-dismiss duration, same as every other Notice in this plugin - if a
+ * newer version is available. Reads `process.env.PLUGIN_VERSION`, which esbuild
  * inlines at build time from `package.json`.
  *
  * Best-effort and non-blocking: called without being awaited (see
@@ -73,14 +74,12 @@ export async function checkForPluginUpdates(): Promise<void> {
 	if (localVersion?.includes('beta')) {
 		if (betaVersion && localVersion !== betaVersion) {
 			new Notice(
-				'There is a beta update available for the Tab Candy plugin. Please update to to the latest version to get the latest features!',
-				0
+				'There is a beta update available for the Tab Candy plugin. Please update to to the latest version to get the latest features!'
 			);
 		}
 	} else if (stableVersion && localVersion !== stableVersion) {
 		new Notice(
-			'There is an update available for the Tab Candy plugin. Please update to to the latest version to get the latest features!',
-			0
+			'There is an update available for the Tab Candy plugin. Please update to to the latest version to get the latest features!'
 		);
 	}
 }

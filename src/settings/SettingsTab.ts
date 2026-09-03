@@ -182,7 +182,7 @@ export default class TabCandySettingTab extends PluginSettingTab {
 				items: [
 					{
 						name: 'Background theme',
-						desc: `What theme would you like to utilize for the random backgrounds? "seasons and holidays" will use a different tag depending on the time of the year. Custom will allow you to input your own URL. Local will use the local images imported below.`,
+						desc: `What theme would you like to utilize for the random backgrounds? Custom will allow you to input your own URL. Local will use the local images imported below.`,
 						control: {
 							type: 'dropdown',
 							key: 'backgroundTheme',

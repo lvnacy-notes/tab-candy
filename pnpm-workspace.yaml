@@ -12,3 +12,9 @@
 allowBuilds:
   '@parcel/watcher': true
   esbuild: true
+
+overrides:
+  'eslint-plugin-obsidianmd>obsidian': '1.13.1'
+  '@microsoft/eslint-plugin-sdl>eslint': '10.9.1'
+  'eslint-plugin-react>eslint': '10.9.1'
+  'eslint-plugin-import>eslint': '10.9.1'

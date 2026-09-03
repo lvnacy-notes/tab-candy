@@ -3,7 +3,11 @@ import {
 	useEffect,
 	useRef
 } from 'react';
-import { App as ObsidianApp, TFile } from 'obsidian';
+import {
+	App as ObsidianApp,
+	TFile,
+	WorkspaceLeaf
+} from 'obsidian';
 import SettingsStore from '../settings/SettingsStore';
 import { executeEnabledPluginCommand } from '../services/commands';
 import { BackgroundTheme } from '../types';
@@ -27,9 +31,11 @@ import {
 const App = ({
 	app,
 	settingsStore,
+	leaf,
 }: {
 	app: ObsidianApp;
 	settingsStore: SettingsStore;
+	leaf: WorkspaceLeaf;
 }) => {
 	const settings = useSettings(settingsStore);
 	const time = useClock(settings.timeFormat);
@@ -46,8 +52,15 @@ const App = ({
 		mainDivRef.current?.focus();
 	}, []);
 
+	// Opens directly on the leaf hosting *this* Tab Candy instance, rather
+	// than asking Obsidian to resolve "the right leaf" itself (e.g. via
+	// workspace.getLeaf(false)). Clicking something in Recent Files or
+	// Bookmarks should always land in the exact new tab you're looking at
+	// - using the leaf reference we already hold is simply the most direct
+	// way to guarantee that, regardless of whatever heuristics Obsidian's
+	// own leaf-resolution might apply.
 	const openFile = (file: TFile) => {
-		void app.workspace.getMostRecentLeaf()?.openFile(file);
+		void leaf.openFile(file);
 	};
 
 	const runInlineSearch = () =>
@@ -61,24 +74,24 @@ const App = ({
 
 	return (
 		<BackgroundSurface
-			background={background}
-			transparent={settings.backgroundTheme === BackgroundTheme.TRANSPARENT}
-			transparentWithShadows={
+			background = { background }
+			transparent = { settings.backgroundTheme === BackgroundTheme.TRANSPARENT }
+			transparentWithShadows = {
 				settings.backgroundTheme ===
 				BackgroundTheme.TRANSPARENT_WITH_SHADOWS
 			}
-			onKeyDown={handleContainerKeyDown}
-			containerRef={mainDivRef}
+			onKeyDown = { handleContainerKeyDown }
+			containerRef = { mainDivRef }
 		>
-			<div className='tabcandy-wrapper'>
-				<div className='tabcandy-top'>
-					{settings.showTopLeftSearchButton && (
+			<div className = 'tabcandy-wrapper'>
+				<div className = 'tabcandy-top'>
+					{ settings.showTopLeftSearchButton && (
 						<SearchButton
-							label='Open Search'
-							iconName='search'
-							className='tabcandy-iconbutton'
-							textClassName='tabcandy-iconbutton-text'
-							onClick={() =>
+							label = 'Open Search'
+							iconName = 'search'
+							className = 'tabcandy-iconbutton'
+							textClassName = 'tabcandy-iconbutton-text'
+							onClick = { () =>
 								executeEnabledPluginCommand(
 									app,
 									settings.topLeftSearchProvider.command
@@ -87,40 +100,40 @@ const App = ({
 						/>
 					)}
 				</div>
-				<div className='tabcandy-center'>
-					{settings.showTime && (
-						<div className='tabcandy-time'>{time}</div>
+				<div className = 'tabcandy-center'>
+					{ settings.showTime && (
+						<div className = 'tabcandy-time'>{time}</div>
 					)}
 					{settings.showGreeting && (
-						<div className='tabcandy-greeting'>
-							{settings.greetingText.replace(
+						<div className = 'tabcandy-greeting'>
+							{ settings.greetingText.replace(
 								/{{greeting}}/gi,
 								getTimeOfDayGreeting()
 							)}
 						</div>
 					)}
 				</div>
-				<div className='tabcandy-bottom'>
-					<div className='tabcandy-search'>
-						{settings.showInlineSearch && (
+				<div className = 'tabcandy-bottom'>
+					<div className = 'tabcandy-search'>
+						{ settings.showInlineSearch && (
 							<SearchButton
-								label='Search'
-								iconName='search'
+								label = 'Search'
+								iconName = 'search'
 								iconFirst
-								className='tabcandy-search-wrapper'
-								textClassName='tabcandy-search-text'
-								onClick={runInlineSearch}
+								className = 'tabcandy-search-wrapper'
+								textClassName = 'tabcandy-search-text'
+								onClick = { runInlineSearch }
 							/>
 						)}
 					</div>
-					{settings.showRecentFiles && (
-						<RecentFiles files={recentFiles} onOpen={openFile} />
+					{ settings.showRecentFiles && (
+						<RecentFiles files = { recentFiles } onOpen = { openFile } />
 					)}
-					{settings.showBookmarks && (
-						<Bookmarks files={bookmarks} onOpen={openFile} />
+					{ settings.showBookmarks && (
+						<Bookmarks files = { bookmarks } onOpen = { openFile } />
 					)}
 				</div>
-				<QuoteDisplay quote={quote} show={settings.showQuote} />
+				<QuoteDisplay quote = { quote } show = { settings.showQuote } />
 			</div>
 		</BackgroundSurface>
 	);

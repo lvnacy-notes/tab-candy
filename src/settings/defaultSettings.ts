@@ -26,7 +26,7 @@ export const DEFAULT_SETTINGS: TabCandySettings = {
 	// wrong number here should never be load-bearing).
 	settingsVersion: 0,
 	replaceEmptyTabsWithTabCandy: true,
-	backgroundTheme: BackgroundTheme.SEASONS_AND_HOLIDAYS,
+	backgroundTheme: BackgroundTheme.TRANSPARENT,
 	customBackground: '',
 	backgroundsFolder: '',
 	backgroundFiles: [],

@@ -1159,6 +1159,243 @@ alongside rather than deferred to §9, since leaving known-bad typing in a
 file already open for a directly related fix would have been pointless
 busywork for a future session.
 
+## §10 — Tests And CI
+
+### Test runner and mocking library: Vitest + `obsidian-test-mocks`, confirmed working end to end
+
+`vitest`/`jsdom`/`@testing-library/react`/`@vitest/ui` were already present in
+`package.json` before this session (see the stray-dependency entry below for
+why that's not as reassuring as it sounds), matching the Testing
+Specification's own runner choice and rationale (Jest's ESM friction; Node's
+`node:test` strip-only mode hard-errors on `enum`, and `types.ts` is
+wall-to-wall enums). `obsidian-test-mocks` was missing entirely and is now
+added (`^4.2.1`), along with its `obsidian-typings` peer (`^6.36.0`, needed
+only for the `obsidian-typings/vitest-setup` runtime prototype bridge — it
+does **not** fix TypeScript type-checking, see below).
+
+`vitest.config.ts` is new. One non-obvious fix was required to get it
+running at all: the real `obsidian` npm package is a types-only shim
+(`"main": ""`), and Vite's resolver fails outright trying to resolve that
+empty entry before `obsidian-test-mocks`' own `vi.mock('obsidian', ...)`
+setup ever gets a chance to intercept the import. Fixed with an explicit
+`resolve.alias: { obsidian: 'obsidian-test-mocks/obsidian' }` in
+`vitest.config.ts` — this is a Vite-resolution-level fix, unrelated to and
+solved before the separate `tsc` type-mismatch problem below.
+
+### Type bridge: mock `App` isn't structurally assignable to the real `App` — `asOriginalType__()` is the sanctioned fix
+
+`obsidian-test-mocks`' own `App` class doesn't structurally match the real
+`obsidian` package's published `App` type (concretely: the mock's
+`WorkspaceLeaf.view` is typed `View | null`; the real package types it
+non-null `View`). Passing a mock-built `App` into any production function
+typed against the real `App` — which is everything in `backgrounds.ts`,
+`bookmarks.ts`, and `commands.ts` — fails `tsc` even though it's the same
+object at runtime, because `vitest.config.ts`'s alias is a bundler-level
+substitution that has no effect on how `tsc` resolves `import { App } from
+'obsidian'` in source files.
+
+`obsidian-test-mocks` ships its own answer to exactly this: every mock class
+has an `asOriginalType__()` method that casts to the real published type.
+`src/test/fakes.ts` wraps this in one `createConfiguredApp()` helper (builds
+via `App.createConfigured__()`, converts via `.asOriginalType__()`) so every
+test file gets a correctly-typed `App` without reaching for the mock/real
+type distinction itself. `pnpm run typecheck` is clean with this in place —
+confirmed, not assumed; this was caught by a real `tsc` failure across five
+test files before the fix, not found by inspection.
+
+### `list()` mocking gap: the in-memory adapter never throws for a missing/malformed path
+
+`obsidian-test-mocks`' in-memory `DataAdapter.list()` filters by path-prefix
+match and returns `{ files: [], folders: [] }` for any path with no
+matches — it never throws, unlike real Obsidian's `FileSystemAdapter`, which
+throws (ENOENT/ENOTDIR) for a missing or malformed directory path. This
+matters because `backgrounds.ts`'s `listBackgroundFilesInFolder()` has a
+`try`/`catch` specifically defending against that real-Obsidian throw
+behavior — a mock-vault folder that simply doesn't exist can't exercise that
+`catch` branch at all; it always takes the "empty folder" happy path
+instead. Worked around, not routed around: `backgrounds.test.ts`'s
+malformed-path test uses `vi.spyOn(app.vault.adapter, 'list').mockRejectedValue(...)`
+to force the real failure mode directly, while every other `list()` test
+(missing folder, non-recursive, case-insensitive extensions) uses the real
+in-memory vault unmodified. Anyone touching `backgrounds.ts`'s adapter error
+handling later should know this gap exists in the mock, not assume the
+existing tests would catch a regression there without the explicit spy.
+
+### Vault mock auto-triggers real events — watcher tests drive real vault operations, not manual `trigger()` calls
+
+`obsidian-test-mocks`' `Vault` extends `Events` and auto-fires
+`create`/`modify`/`delete`/`rename` on its own `create()`/`delete()`/
+`rename()` methods (confirmed by reading `Vault.mjs` directly, not assumed
+from the type signatures). `backgrounds.test.ts`'s
+`registerBackgroundVaultWatchers()` tests therefore call the real
+`app.vault.create(...)`/`.delete(...)`/`.rename(...)` methods and let the
+mock fire the corresponding event naturally, rather than hand-calling
+`app.vault.trigger('create', fakeFile)` with a hand-built fake `TFile`. This
+is a stronger test (it exercises the mock's own file-tree bookkeeping too,
+e.g. `TFile.parent` only gets set correctly if the parent folder already
+existed when the file was created — this tripped one intermediate draft of
+the watcher tests and is why every watcher `setUp()` seeds the `Backgrounds`
+folder via the initial `files:` map rather than creating it mid-test).
+
+`vi.useFakeTimers()` is mandatory for these tests — `registerBackgroundVaultWatchers()`
+debounces its resync by 500ms, and `vi.advanceTimersByTimeAsync(500)` is
+used throughout rather than `vi.advanceTimersByTime()`, since the debounced
+callback itself does async vault work that needs to actually resolve before
+assertions run.
+
+### Shared private-registry fixtures for `commands.ts`/`bookmarks.ts`
+
+Both files touch the same undocumented private `App` surface
+(`commands.commands`, `plugins.plugins`, `internalPlugins.plugins`), and the
+Testing Specification calls this out as one shared fixture set rather than
+duplicated per-file mocking. `src/test/fakes.ts` adds
+`setCommandsRegistry()`/`setPluginsRegistry()`/`setInternalPluginsRegistry()`
+plus one composite `withEmptyPrivateRegistries()`.
+
+One real gotcha drove the shape of these: `obsidian-test-mocks` wraps `App`
+in a **strict proxy** — reading any property that was never explicitly
+assigned throws a descriptive error rather than returning `undefined` (this
+is the library's own "Strict Mocks" design, confirmed by reading
+`strict-proxy.mjs` directly). Real Obsidian's `App` always has `commands`/
+`plugins`/`internalPlugins` present, even when empty, so every setter here
+assigns *something* — explicit `undefined` included — and no test ever
+leaves a registry genuinely untouched. `commands.ts`'s `isPluginEnabled()`
+destructures `plugins`/`internalPlugins` off `app` in one statement, so
+leaving either truly unassigned throws before that function's own optional
+chaining ever runs — a proxy artifact, not a real "fails closed" test, which
+is why `withEmptyPrivateRegistries()` exists as the mandatory starting point
+for every `commands.ts` test rather than something ad hoc.
+
+### Vite production build migration — attempted, hit two confirmed walls, reverted to esbuild per the spec's own accepted fallback
+
+The Testing Specification's toolchain section calls for replacing
+`esbuild.config.js` with Vite library mode for the actual `main.js`
+production build (not just the test runner) — "if the migration hits a wall
+during implementation, the accepted fallback is reverting the build to
+esbuild while keeping Vitest for tests regardless." Attempted this in full,
+against this repo's real two-entry-point build (`main.ts` → `main.js`,
+`styles.scss` → `styles.css`, independently — nothing imports the scss from
+JS, matching Obsidian's own plugin-loading convention of two separate
+top-level files). Installed `vite@8.2.2` as a devDependency alongside
+Vitest's own internal `vite@5.4.21` dependency to test this — confirmed
+these coexist cleanly under pnpm's isolated `node_modules` layout with no
+conflict, in case a future attempt wants to retry this without re-verifying
+that part.
+
+Two separate, empirically-confirmed walls, not assumptions:
+
+1. **`build.lib` + a second CSS-only entry crashes outright.** Vite's
+   `build.lib` convenience API (needed for `formats: ['cjs']`/correct
+   externals handling) only supports JS-producing entries. Adding
+   `styles.scss` as a second entry alongside `main.ts` under `build.lib.entry`
+   crashes Vite 8.2.2's internal `vite:css-post` plugin during the build
+   itself — reproduced directly against this repo's real entry files.
+2. **Bypassing `build.lib` silently tree-shakes the entire plugin class
+   away.** Driving `rollupOptions.input`/`output` directly (to work around
+   wall 1) produces a build that completes with no errors and looks
+   plausible (correct file sizes, correct `dist/styles.css`) but **contains
+   none of `main.ts`'s own code** — `TabCandyPlugin`, `onload`, `registerView`,
+   all absent from the output, confirmed by grep on the actual built
+   `dist/main.js`, not inferred. Isolated further: this happens even with
+   `main.ts` as the *sole* entry, no `styles.scss` involved at all — `build.lib`
+   is what tells Rollup/Rolldown to treat an entry's exports as a public API
+   surface that must survive tree-shaking; without it, a plugin's
+   `export default class extends Plugin {}` with no external consumer of that
+   export gets eliminated as dead code, since nothing in a JS-only build
+   graph ever "uses" it. This is a structural incompatibility between
+   Obsidian's plugin-entry convention and Vite's non-lib multi-entry output,
+   not a config mistake — confirmed with a minimal single-entry, no-CSS
+   isolation test.
+
+**Decision: esbuild stays.** `vite.config.ts` was deleted; `vite@8.2.2` was
+downgraded back to the pre-existing `^5.3.0` range (the version Vitest
+itself already needs — no reason to carry an unused Vite 8 devDependency
+around). `esbuild.config.js` is untouched and confirmed working (see the
+stray-dependency entry immediately below for why it wasn't working when this
+session started, unrelated to anything above). If someone revisits this
+migration later: the two walls above are the actual blocker to solve, not a
+config-tuning problem — likely needs either Vite's `build.lib.entry` +
+separately invoking `vite build` a second time purely for the CSS (two
+build passes, two configs), or waiting for `build.lib` to support mixed
+entry types upstream, whichever lands first.
+
+### Stray dependency/build breakage traced to an abandoned local session — found and fixed, not left for the next session to trip over
+
+While investigating a stale `jsdom: ^24.0.0` pin (should have been on 30;
+caught in review, not by this session's own work), `git log -S'"jsdom"' --
+package.json` traced it to commit `614b959` ("chore: refactor, part 10,
+testing specification created") — the **same commit** that added
+`docs/SECTION-10-TEST-IMPLEMENTATION-SUMMARY.md`, a doc describing a local
+test-suite attempt that turned into "a giant fiasco" and was explicitly
+disregarded and scrubbed from context partway through this session, per
+direct instruction. Worth being explicit about for whoever reads this next:
+that abandoned attempt's leftovers weren't fully cleaned up before this
+session started, and weren't isolated to the one doc file everyone already
+knew to distrust.
+
+The same commit's `package.json` diff also **removed `esbuild-sass-plugin`
+and `esbuild-copy-static-files`** from `dependencies` — both still directly
+imported by `esbuild.config.js`, which was never actually replaced. This
+meant `pnpm run build`, `pnpm run dev`, and `pnpm run dev:mobile` had been
+silently broken (`ERR_MODULE_NOT_FOUND`) on this branch since that commit,
+independent of and predating anything done in this session or the Vite
+migration attempt above — confirmed by literally running `node
+esbuild.config.js production` and getting the resolution error before
+either package was reinstalled. Both packages are now reinstalled
+(`esbuild-sass-plugin@3.7.0`, `esbuild-copy-static-files@0.1.0` — matching
+the versions §1 already settled on, not new picks), and a real production
+build was run end to end to confirm: `dist/main.js`, `dist/manifest.json`,
+`dist/styles.css` all produced correctly, exit code 0.
+
+**Lesson for future sessions, stated directly rather than left implicit:**
+when a commit is known to be tainted (a doc from it was already flagged as
+fictional/discard), audit the *entire diff* of that commit before trusting
+anything else it touched, not just the one file that triggered suspicion.
+`jsdom` was caught by chance during an unrelated conversation, not by a
+systematic check — the dependency removal that actually broke the build
+tool was sitting in the same diff the whole time and would not have
+surfaced without going back and reading it in full after the fact.
+
+### What's left in §10 for the next session
+
+Completed this session, for reference: `normalizeSettings()` (82 tests,
+every field's fallback path), `SettingsStore` (14 tests, focused on the
+subscribe/unsubscribe regression specifically called out as load-bearing),
+`backgrounds.ts` (30 tests: `list()`/`readBinary()`-shaped resource
+resolution, `filterExistingFiles`, `syncBackgroundsFolder`,
+`pruneMissingManualBackgroundFiles`, and the debounced vault watchers),
+`bookmarks.ts` (14 tests), `commands.ts` (14 tests, not originally an
+explicit checklist line item but added since it shares the exact
+"fails closed" private-registry requirement the checklist calls out for
+bookmarks). 154 tests total, `pnpm run test`/`typecheck`/`lint` all clean.
+
+Explicitly **not** started, and not partially done either — genuinely
+untouched:
+
+- **`TabCandyView` lifecycle** (open/close/recreate/multiple leaves). This
+  was next on the plan when the session's scope shifted to the build-tool
+  investigation above; zero tests exist for this file.
+- **React component tests** (`components.tsx`/`App.tsx`) for major display
+  states and user actions.
+- **`getQuote.ts`** fallback and network-failure behavior — untested.
+- Supplementary small-utility tests: `isEnumValue`, `debounce`, `time.ts`,
+  `getEasterDate`/`getBackground`/`isWithinXDays`, `versionCheck`. None
+  started. `imageExtensions.ts`'s extension list is exercised *indirectly*
+  through `backgrounds.test.ts` (including case-insensitivity), but has no
+  standalone test file of its own.
+- **Two checklist line items are stale, not incomplete** — worth flagging
+  so no one spends time on them by mistake: "object URL creation and
+  revocation" and the "MIME mapping" half of "image-extension and MIME
+  mapping." Neither `createObjectURL`/`revokeObjectURL` nor any MIME-type
+  map exists anywhere in the current codebase (confirmed by repo-wide grep)
+  — the vault-image approach that shipped uses `adapter.getResourcePath()`
+  exclusively, which needs neither. These two items describe an
+  implementation approach earlier sections moved away from; they should be
+  struck or reworded rather than pursued as written.
+- CI (workflow jobs, the manual desktop/mobile matrix, the release
+  workflow) — explicitly out of scope for this session by direct
+  instruction, not attempted.
+
 ### Time utilities: partial consolidation, not total
 
 "Combine tiny time utilities if doing so improves discoverability" named

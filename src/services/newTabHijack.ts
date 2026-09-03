@@ -13,12 +13,20 @@ import SettingsStore from '../settings/SettingsStore';
  * paths funnel through one place that knows how to turn a leaf into Tab
  * Candy, rather than each constructing the same setViewState() call
  * separately.
+ *
+ * Awaits `revealLeaf()` after `setViewState()` - Obsidian's own docs
+ * recommend this to guarantee the view has actually finished loading
+ * (rather than sitting behind an internal placeholder while backgrounded)
+ * before anything else touches the leaf. Cheap, and effectively a no-op
+ * when the leaf is already the one on screen, which is the common case
+ * for both callers here.
  */
-async function setLeafToTabCandy(leaf: WorkspaceLeaf): Promise<void> {
+async function setLeafToTabCandy(app: App, leaf: WorkspaceLeaf): Promise<void> {
 	await leaf.setViewState({
 		type: TAB_CANDY_VIEW_TYPE,
 		active: true,
 	});
+	await app.workspace.revealLeaf(leaf);
 }
 
 /**
@@ -37,8 +45,7 @@ export async function activateView(app: App): Promise<void> {
 	}
 
 	const leaf = workspace.getLeaf(true);
-	await setLeafToTabCandy(leaf);
-	await workspace.revealLeaf(leaf);
+	await setLeafToTabCandy(app, leaf);
 }
 
 /**
@@ -76,7 +83,7 @@ export function registerNewTabHijack(
 
 			const leaf = app.workspace.getMostRecentLeaf();
 			if (leaf?.getViewState().type === 'empty') {
-				void setLeafToTabCandy(leaf);
+				void setLeafToTabCandy(app, leaf);
 			}
 		})
 	);

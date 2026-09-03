@@ -1,13 +1,4 @@
 export enum BackgroundTheme {
-	SEASONS_AND_HOLIDAYS = 'seasons and holidays',
-	WINTER = 'winter',
-	SPRING = 'spring',
-	SUMMER = 'summer',
-	FALL = 'fall',
-	MOUNTAIN = 'mountains',
-	LAKES = 'lakes',
-	FOREST = 'forest',
-	ANIMALS = 'animals',
 	CUSTOM = 'custom',
 	LOCAL = 'local',
 	TRANSPARENT = 'transparent',
